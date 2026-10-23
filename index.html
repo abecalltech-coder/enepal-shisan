@@ -284,6 +284,7 @@ function recAP(area, month){
   const v = Math.round(PROC_DATA[m][idx]/1.2*100)/100;
   return {v, m, latest};
 }
+const MG_OPTS = ["6.0","6.5","7.0","7.5","8.0","8.5","9.0","9.5","10.0","10.5","11.0","11.5","12.0"];
 const PLANS = {GL:"マーケットリンクGL",GH:"マーケットリンクGH",GD:"マーケットリンクGD",PP:"パルプレミアム／セレクト",PPL:"パルプレミアムライト／セレクトライト",PD:"パル動力プレミアム"};
 const PLAN_GROUPS = [["エネパル Type-G（市場連動）",["GL","GH","GD"]],["パルパワー（固定単価）",["PP","PPL","PD"]]];
 const isPal = p => p==="PP"||p==="PPL"||p==="PD";
@@ -324,9 +325,9 @@ const saveSettings = ()=>store.set("enepal_settings_v2",{ver:SET_VER,data:S});
 for (const k of AREA_KEYS) if(!S.area[k]) S.area[k]=clone(DEFAULT_SET.area[k]);
 for (const k of Object.keys(DEFAULT_SET)) if(k!=="area" && S[k]===undefined) S[k]=DEFAULT_SET[k];
 
-const BLANK = () => ({plan:"GL",area:"",month:"",cap:"",unit:"kVA",kwh:"",ap:"",mgmt:12,welcome:false,sub:"",bill:"",pf:"down"});
+const BLANK = () => ({plan:"GL",area:"",month:"",cap:"",unit:"kVA",kwh:"",ap:"",mgmt:12,disc:0,welcome:false,sub:"",bill:"",pf:"down"});
 let rows = store.get("enepal_rows_v2") || [BLANK()];
-let uid = 0; rows.forEach(r=>r.id=++uid);
+let uid = 0; rows.forEach(r=>{ r.id=++uid; if(!MG_OPTS.includes((+r.mgmt).toFixed(1))) r.mgmt=12; if(r.disc==null) r.disc=0; });
 const custEl = document.getElementById("customer");
 custEl.value = store.get("enepal_customer_v1") || "";
 
@@ -398,15 +399,14 @@ function calc(r){
   const e2 = t2(kwh*ap/(1-loss)*(1+TAX));
   const fee = +S.fee||0;
   const e3 = t2(kwh*fee/(1-loss)*(1+TAX));
-  const mg = r.plan==="GL" ? (+r.mgmt||0) : (+r.mgmt||0);
+  const hasMg = r.plan!=="GD", mg = hasMg ? (+r.mgmt||0) : 0;
   const e4 = t2(kwh*mg*(1+TAX));
   const eTot = t2(e1+e2+e3+e4);
-  items.push({k:"energy",label:"電力量料金",v:eTot,f:"下記4項目の合計",group:true});
+  items.push({k:"energy",label:"電力量料金",v:eTot,f:"下記項目の合計",group:true});
   items.push({k:"e1",label:"託送従量分",v:e1,f:`${fmt(kwh)}kWh × ${fu(tk)}円（${T.name}エリア${isPower?"動力":"電灯"}託送単価・税込）`,sub:true});
   items.push({k:"e2",label:"市場連動分",v:e2,f:`${fmt(kwh)}kWh × ${fu(ap)}円 ÷ (1−損失率${(loss*100).toFixed(1)}%) × 1.1　＝ 実質 ${fu(ap/(1-loss)*1.1)}円/kWh`,sub:true});
   items.push({k:"e3",label:"市場取引手数料",v:e3,f:`${fmt(kwh)}kWh × ${fee}円 ÷ (1−損失率) × 1.1`,sub:true});
-  items.push({k:"e4",label:"供給管理費",v:e4,f:`${fmt(kwh)}kWh × ${fu(mg)}円 × 1.1`,sub:true});
-  if(r.plan!=="GL" && mg>0) warns.push("料金表上、供給管理費はGLのみです。GH・GDで入れる場合は条件をご確認ください。");
+  if(hasMg) items.push({k:"e4",label:"供給管理費",v:e4,f:`${fmt(kwh)}kWh × ${fu(mg)}円 × 1.1`,sub:true});
 
   const sr = saieneRate(r.month);
   const sa = yen(kwh*sr);
@@ -506,6 +506,8 @@ function calcPal(r){
   const eTot=t2(tiers.reduce((a,x)=>a+x.v,0));
   items.push({k:"energy",label:"電力量料金",v:eTot,f:tierNote||"",group:true});
   tiers.forEach((x,i)=>items.push({k:"p"+(i+1),label:x.label,v:x.v,f:`${fmt(x.q)}kWh × ${fu(x.r)}円`,sub:true}));
+  const pct=+r.disc||0;
+  if(pct>0) items.push({k:"sotai",label:"相対割引",v:t2(-eTot*pct/100),f:`電力量料金 ${fu(eTot)}円 × ${pct}%`});
 
   // 電源調達調整費（燃料費調整は係数0のため0円。調達調整費のみ）
   const coef=+S.palCoef||0, pu=ap*coef, rb=+A.rb, ab=+A.ab;
@@ -565,7 +567,8 @@ function rowHTML(r,i){
       <div class="f"><label for="cap_${id}">契約容量</label><div class="pair"><input id="cap_${id}" type="number" min="0" step="1" data-k="cap" value="${r.cap}"><select id="unit_${id}" data-k="unit" aria-label="単位">${unitOpts(r)}</select></div></div>
       <div class="f"><label for="kwh_${id}">使用電力量（kWh）</label><input id="kwh_${id}" type="number" min="0" step="1" data-k="kwh" value="${r.kwh}"></div>
       <div class="f"><label for="ap_${id}">エリアプライス月平均（円/kWh）</label><input id="ap_${id}" type="number" min="0" step="0.01" data-k="ap" value="${r.ap}"><span class="hint">${isPal(r.plan)?"電源調達調整費の計算に使用（税抜）":"JEPXの税抜価格"}</span><span class="rec" id="rec_${id}"></span></div>
-      <div class="f"${isPal(r.plan)?" hidden":""}><label for="mgmt_${id}">供給管理費（円/kWh・税別）</label><input id="mgmt_${id}" type="number" min="0" step="0.5" data-k="mgmt" value="${r.mgmt}"><span class="hint">料金表：GL 12円／GH・GD なし</span></div>
+      <div class="f"${(r.plan==="GL"||r.plan==="GH")?"":" hidden"}><label for="mgmt_${id}">供給管理費（円/kWh・税別）</label><select id="mgmt_${id}" data-k="mgmt">${MG_OPTS.map(v=>`<option value="${v}"${+v===+r.mgmt?" selected":""}>${v}円</option>`).join("")}</select></div>
+      <div class="f"${isPal(r.plan)?"":" hidden"}><label for="disc_${id}">相対割引（電力量料金に対して）</label><select id="disc_${id}" data-k="disc"><option value="0"${!(+r.disc)?" selected":""}>なし</option>${Array.from({length:19},(_,i)=>i+1).map(v=>`<option value="${v}"${+r.disc===v?" selected":""}>${v}%</option>`).join("")}</select></div>
       <div class="f"><label for="sub_${id}">国の支援値引（円/kWh）</label><input id="sub_${id}" type="number" min="0" step="0.1" data-k="sub" value="${r.sub??""}"><span class="hint">明細に補助がある月のみ</span></div>
       <div class="f"><label for="bill_${id}">取得明細料金（税込・円）</label><input id="bill_${id}" type="number" min="0" step="1" data-k="bill" value="${r.bill}"></div>
       <div class="f"${r.plan==="PD"?"":" hidden"}><label for="pf_${id}">力率</label><select id="pf_${id}" data-k="pf"><option value="down"${(r.pf||"down")==="down"?" selected":""}>85%超（5%割引）</option><option value="none"${r.pf==="none"?" selected":""}>85%ちょうど（なし）</option><option value="up"${r.pf==="up"?" selected":""}>85%未満（5%割増）</option></select></div>
@@ -583,10 +586,9 @@ rowsEl.addEventListener("input", e=>{
   const el=e.target, card=el.closest("[data-id]"); if(!card||!el.dataset.k) return;
   const r=rows.find(x=>x.id==card.dataset.id); const k=el.dataset.k;
   r[k] = el.type==="checkbox" ? el.checked : (el.type==="number" ? (el.value===""?"":+el.value) : el.value);
-  if(k==="plan"){ r.mgmt = r.plan==="GL"?12:0; if(isPowerPlan(r.plan)) r.unit="kW"; else if(r.unit==="kW") r.unit="kVA"; renderRows(); return; }
+  if(k==="plan"){ if(!MG_OPTS.includes((+r.mgmt).toFixed(1))) r.mgmt=12; if(!isPal(r.plan)) r.disc=0; if(isPowerPlan(r.plan)) r.unit="kW"; else if(r.unit==="kW") r.unit="kVA"; renderRows(); return; }
   if(k==="plan"||k==="area"){
     const sel=card.querySelector('[data-k="unit"]'); sel.innerHTML=unitOpts(r);
-    card.querySelector('[data-k="mgmt"]').value=r.mgmt;
   }
   update();
 });
@@ -599,7 +601,7 @@ rowsEl.addEventListener("click", e=>{
   rows = rows.filter(x=>x.id!=id); renderRows();
 });
 function nextMonth(m){ if(!m) return ""; let [y,mo]=m.split("-").map(Number); mo++; if(mo>12){mo=1;y++} return `${y}-${String(mo).padStart(2,"0")}`; }
-document.getElementById("addRow").onclick=()=>{ const l=rows[rows.length-1]; rows.push({id:++uid,plan:l.plan,area:l.area,month:nextMonth(l.month),cap:l.cap,unit:l.unit,kwh:"",ap:"",mgmt:l.mgmt,welcome:l.welcome,sub:0,bill:""}); renderRows(); };
+document.getElementById("addRow").onclick=()=>{ const l=rows[rows.length-1]; rows.push({id:++uid,plan:l.plan,area:l.area,month:nextMonth(l.month),cap:l.cap,unit:l.unit,kwh:"",ap:"",mgmt:l.mgmt,disc:l.disc||0,welcome:l.welcome,sub:0,bill:""}); renderRows(); };
 document.getElementById("dupRow").onclick=()=>{ const l=rows[rows.length-1]; rows.push({...clone(l),id:++uid,month:nextMonth(l.month)}); renderRows(); };
 document.getElementById("resetRows").onclick=()=>{ rows=[BLANK()]; rows.forEach(r=>r.id=++uid); custEl.value=""; store.set("enepal_customer_v1",""); renderRows(); toast("入力をクリアしました"); };
 custEl.addEventListener("input",()=>{store.set("enepal_customer_v1",custEl.value);update()});
@@ -663,7 +665,7 @@ function renderBreakdown(res){
   const multi = res.length>1;
   const keys=[]; const seen={};
   res.forEach(c=>c.items.forEach(it=>{ if(!seen[it.k]){seen[it.k]=it;keys.push(it.k)} }));
-  const order=["basic","pdisc","welcome","energy","e1","e2","e3","e4","p1","p2","p3","chotatsu","saiene","stable","stadj","takuso","subsidy"];
+  const order=["basic","pdisc","welcome","energy","e1","e2","e3","e4","p1","p2","p3","sotai","chotatsu","saiene","stable","stadj","takuso","subsidy"];
   keys.sort((a,b)=>order.indexOf(a)-order.indexOf(b));
   let h=`<thead><tr><th>項目</th>${res.map((c,i)=>`<th>${monthLabel(R[i].month,i)}<br>${fmt(c.kwh)}kWh</th>`).join("")}${multi?"<th>合計</th>":""}</tr></thead><tbody>`;
   keys.forEach(k=>{
