@@ -83,16 +83,33 @@ button.ghost:hover{color:var(--bad)}
 .small{font-size:.75rem;color:var(--muted)}
 section.block{padding:18px;display:flex;flex-direction:column;gap:12px}
 .scroll{overflow-x:auto;min-width:0}
-table{border-collapse:collapse;width:100%;font-size:.86rem}
-th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+table{border-collapse:collapse;width:auto;min-width:min(100%,460px);font-size:.88rem}
+th,td{padding:7px 14px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+#bd th:not(:first-child),#bd td:not(:first-child){min-width:110px}
+#bd td:first-child{min-width:170px;padding-right:28px}
+.settings{width:100%}
 th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--surface)}
 thead th{font-size:.75rem;color:var(--muted);font-weight:500;border-bottom:2px solid var(--ink)}
 td.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
 tr.sub td:first-child{padding-left:24px;color:var(--muted)}
 tr.tot td{font-weight:700;border-top:2px solid var(--ink);border-bottom:none}
 tr.cmp td{border-bottom:none}
-tr.diff td{font-weight:700}
+tr.diff td{font-weight:700;font-size:.95rem}
+tr.diff td.pos{background:var(--good-soft)}
+tr.diff td.neg{background:var(--bad-soft)}
 .pos{color:var(--good)}.neg{color:var(--bad)}
+.cmpbox{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-items:stretch;max-width:760px}
+@media (max-width:620px){.cmpbox{grid-template-columns:minmax(0,1fr)}}
+.cmpbox>div{border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;background:var(--sunk)}
+.cmpbox .lab{font-size:.75rem;color:var(--muted);font-weight:700}
+.cmpbox .val{font-family:var(--f-num);font-size:1.45rem;font-weight:600;line-height:1.25}
+.cmpbox .sub{font-size:.78rem;color:var(--muted)}
+.cmpbox .res.good{background:var(--good-soft)}.cmpbox .res.good .lab,.cmpbox .res.good .val{color:var(--good)}
+.cmpbox .res.bad{background:var(--bad-soft)}.cmpbox .res.bad .lab,.cmpbox .res.bad .val{color:var(--bad)}
+.cmpline{font-size:.92rem;font-weight:700;max-width:760px}
+.pill{display:inline-block;border-radius:999px;padding:1px 10px;font-weight:700}
+.pill.pos{background:var(--good-soft)}.pill.neg{background:var(--bad-soft)}
+abbr.help{text-decoration:underline dotted;cursor:help}
 details{border-top:1px solid var(--line);padding-top:10px}
 summary{cursor:pointer;font-weight:700;font-size:.9rem}
 .basis{display:flex;flex-direction:column;gap:14px;margin-top:10px}
@@ -151,6 +168,7 @@ textarea#copyfallback{width:100%;min-height:160px;font-family:var(--f-num);font-
       <div class="eyebrow">お客様向け</div>
       <h2 id="bdTitle">ご請求額の試算内訳（税込）</h2>
     </div>
+    <div id="cmp" class="cmp-wrap" style="display:flex;flex-direction:column;gap:8px" hidden></div>
     <div class="scroll"><table id="bd"></table></div>
     <details>
       <summary>計算根拠を表示（月ごとの式）</summary>
@@ -548,9 +566,9 @@ function update(){
     const d = c.diff;
     if(c.empty){ document.getElementById("o_"+r.id).innerHTML = `<span class="small">エリアと使用電力量を入れると試算します</span>`; return; }
     document.getElementById("o_"+r.id).innerHTML =
-      `<span>試算額 <b>${fmt(c.total)}円</b></span>` +
-      (c.bill?`<span>明細 <b>${fmt(c.bill)}円</b></span><span class="${d>=0?"pos":"neg"}">差額 <b>${d>=0?"":"+"}${fmt(Math.abs(d))}円${d>=0?" 安い":" 高い"}</b></span>`:"") +
-      (c.kwh?`<span>実質単価 <b>${fu(c.total/c.kwh)}円/kWh</b></span>`:"");
+      (c.bill?`<span>現在 <b>${fmt(c.bill)}円</b> → エネパル <b>${fmt(c.total)}円</b></span><span class="pill ${d>=0?"pos":"neg"}">${fmt(Math.abs(d))}円 ${d>=0?"安くなる":"高くなる"}（${(Math.abs(d)/c.bill*100).toFixed(1)}%）</span>`
+              :`<span>エネパル試算額 <b>${fmt(c.total)}円</b></span>`) +
+      (c.kwh?`<span><abbr class="help" title="請求額の合計を使用電力量で割った、1kWhあたりの実際の単価（税込・すべての項目込み）">1kWhあたり</abbr> <b>${fu(c.total/c.kwh)}円</b>${c.bill?`（現在 ${fu(c.bill/c.kwh)}円）`:""}</span>`:"");
   });
   // summary
   const withBill = res.filter(c=>!c.empty&&c.bill>0);
@@ -583,6 +601,7 @@ function renderBreakdown(res){
   const cust=custEl.value.trim();
   document.getElementById("bdTitle").textContent = (cust?cust+"　":"")+"ご請求額の試算内訳（税込）";
   if(!res.length){ document.getElementById("bd").innerHTML='<tbody><tr><td class="small" style="position:static">エリアと使用電力量を入れると、ここに内訳が表示されます。</td></tr></tbody>'; document.getElementById("basis").innerHTML=""; return; }
+  renderCompare(res);
   const multi = res.length>1;
   const keys=[]; const seen={};
   res.forEach(c=>c.items.forEach(it=>{ if(!seen[it.k]){seen[it.k]=it;keys.push(it.k)} }));
@@ -598,10 +617,10 @@ function renderBreakdown(res){
   h+=`<tr class="tot"><td>エネパル試算額</td>${T.map(v=>`<td class="n">${fmt(v)}円</td>`).join("")}${multi?`<td class="n">${fmt(tT)}円</td>`:""}</tr>`;
   if(res.some(c=>c.bill)){
     const B=res.map(c=>c.bill), tB=B.reduce((a,b)=>a+b,0);
-    h+=`<tr class="cmp"><td>現在のご請求額（明細）</td>${B.map(v=>`<td class="n">${v?fmt(v)+"円":"—"}</td>`).join("")}${multi?`<td class="n">${fmt(tB)}円</td>`:""}</tr>`;
+    h+=`<tr class="cmp"><td>現在の会社のご請求額</td>${B.map(v=>`<td class="n">${v?fmt(v)+"円":"—"}</td>`).join("")}${multi?`<td class="n">${fmt(tB)}円</td>`:""}</tr>`;
     const D=res.map(c=>c.diff), tD=res.filter(c=>c.bill).reduce((a,c)=>a+c.diff,0);
-    const cell=d=>d===null?"<td class=\"n\">—</td>":`<td class="n ${d>=0?"pos":"neg"}">${d>=0?"▼":"▲"}${fmt(Math.abs(d))}円</td>`;
-    h+=`<tr class="diff"><td>差額（▼は削減）</td>${D.map(cell).join("")}${multi?cell(tD):""}</tr>`;
+    const cell=d=>d===null?"<td class=\"n\">—</td>":`<td class="n ${d>=0?"pos":"neg"}">${fmt(Math.abs(d))}円 ${d>=0?"安い":"高い"}</td>`;
+    h+=`<tr class="diff"><td>差額</td>${D.map(cell).join("")}${multi?cell(tD):""}</tr>`;
   }
   h+="</tbody>";
   document.getElementById("bd").innerHTML=h;
@@ -614,6 +633,21 @@ function renderBreakdown(res){
   }).join("");
 }
 
+function renderCompare(res){
+  const el=document.getElementById("cmp"), wb=res.filter(c=>c.bill>0);
+  if(!wb.length){ el.hidden=true; el.innerHTML=""; return; }
+  const bill=wb.reduce((a,c)=>a+c.bill,0), est=wb.reduce((a,c)=>a+c.total,0), d=bill-est, n=wb.length;
+  const good=d>=0, pct=(Math.abs(d)/bill*100).toFixed(1), yr=Math.round(Math.abs(d)/n*12), per=Math.round(Math.abs(d)/n);
+  const scope = n>1?`${n}件の合計`:"1か月分";
+  el.innerHTML=`<div class="cmpbox">
+      <div><span class="lab">現在の電気代（${scope}）</span><span class="val">${fmt(bill)}円</span><span class="sub">お手元の明細の金額</span></div>
+      <div><span class="lab">エネパルに切り替えた場合</span><span class="val">${fmt(est)}円</span><span class="sub">同じ使用量で試算</span></div>
+      <div class="res ${good?"good":"bad"}"><span class="lab">${good?"安くなる金額":"高くなる金額"}</span><span class="val">${fmt(Math.abs(d))}円</span><span class="sub">${pct}% ${good?"削減":"増加"}</span></div>
+    </div>
+    <div class="cmpline ${good?"pos":"neg"}">${good?`1か月あたり約${fmt(per)}円、年間で約${fmt(yr)}円の節約見込みです。`:`1か月あたり約${fmt(per)}円、年間で約${fmt(yr)}円高くなる見込みです。`}</div>`;
+  el.hidden=false;
+}
+
 // ---------- copy ----------
 function buildText(){
   const cust=custEl.value.trim(); const idx=lastResults.map((c,i)=>i).filter(i=>!lastResults[i].empty); const R=idx.map(i=>rows[i]); const res=idx.map(i=>lastResults[i]);
@@ -623,12 +657,12 @@ function buildText(){
     t+=`\n■ ${monthLabel(r.month,i)}（${PLANS[r.plan]}／${TARIFF[r.area].name}エリア／${fmt(c.kwh)}kWh）\n`;
     c.items.forEach(it=>{ t+=`${it.sub?"　・":"・"}${it.label}：${fu(it.v)}円\n`; });
     t+=`→ 試算額：${fmt(c.total)}円（税込）\n`;
-    if(c.bill) t+=`　現在のご請求：${fmt(c.bill)}円 ／ 差額：${c.diff>=0?"▼":"▲"}${fmt(Math.abs(c.diff))}円\n`;
+    if(c.bill) t+=`　現在のご請求：${fmt(c.bill)}円 → ${fmt(Math.abs(c.diff))}円${c.diff>=0?"安くなります":"高くなります"}\n`;
   });
   const wb=res.filter(c=>c.bill);
   if(wb.length){
     const d=wb.reduce((a,c)=>a+c.diff,0);
-    t+=`\n合計差額：${d>=0?"▼":"▲"}${fmt(Math.abs(d))}円（${wb.length}か月）\n年間換算：約${fmt(Math.abs(Math.round(d/wb.length*12)))}円の${d>=0?"削減":"増加"}見込み\n`;
+    t+=`\n【比較】現在 ${fmt(wb.reduce((a,c)=>a+c.bill,0))}円 → エネパル ${fmt(wb.reduce((a,c)=>a+c.total,0))}円（${wb.length}件）\n${d>=0?"安くなる金額":"高くなる金額"}：${fmt(Math.abs(d))}円\n年間換算：約${fmt(Math.abs(Math.round(d/wb.length*12)))}円の${d>=0?"節約":"増加"}見込み\n`;
   }
   t+=`\n※市場連動分はエリアプライス月平均での概算です。実際の料金は30分ごとの市場価格により変動します。`;
   return t;
