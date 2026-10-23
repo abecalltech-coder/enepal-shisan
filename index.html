@@ -178,7 +178,7 @@ textarea#copyfallback{width:100%;min-height:160px;font-family:var(--f-num);font-
         <div class="f"><label for="st_welcome">ウェルカム割 GH/GD（円/kVA・kW・税込）</label><input id="st_welcome" type="number" step="1"></div>
         <div class="f"><label for="st_palCoef">パル 調達単価係数</label><input id="st_palCoef" type="number" step="0.01"><span class="hint">調達単価＝エリアプライス平均×係数</span></div>
         <div class="f"><label for="st_palPremDisc">パル動力プレミアム値引（円/kW・税込）</label><input id="st_palPremDisc" type="number" step="1"></div>
-        <div class="f"><label for="st_palWelcome">パル動力 キャンペーン割（円/kW・税込）</label><input id="st_palWelcome" type="number" step="1"><span class="hint">電灯プランは基本料金（最低料金）全額無料</span></div>
+        <div class="f"><label for="st_palWelcome">パル動力 キャンペーン割（円/kW・税込）</label><input id="st_palWelcome" type="number" step="1"><span class="hint">電灯プランは基本料金（最低料金）全額無料。セレクト系は割引なしなのでチェックを外して試算</span></div>
       </div>
       <div class="scroll"><table class="settings" id="setTable"></table></div>
       <div class="actions" style="margin-top:12px"><button id="resetSettings" type="button">設定を初期値に戻す</button></div>
@@ -231,7 +231,7 @@ const DEFAULT_SET = {
     kyushu:{loss:8.6,lb:284.24,lk:7.80,pb:511.64,pk:5.53,rb:4.0,ab:8.0}
   }
 };
-const PLANS = {GL:"マーケットリンクGL",GH:"マーケットリンクGH",GD:"マーケットリンクGD",PP:"パルプレミアム",PPL:"パルプレミアムライト",PD:"パル動力プレミアム"};
+const PLANS = {GL:"マーケットリンクGL",GH:"マーケットリンクGH",GD:"マーケットリンクGD",PP:"パルプレミアム／セレクト",PPL:"パルプレミアムライト／セレクトライト",PD:"パル動力プレミアム"};
 const PLAN_GROUPS = [["エネパル Type-G（市場連動）",["GL","GH","GD"]],["パルパワー（固定単価）",["PP","PPL","PD"]]];
 const isPal = p => p==="PP"||p==="PPL"||p==="PD";
 const isPowerPlan = p => p==="GD"||p==="PD";
