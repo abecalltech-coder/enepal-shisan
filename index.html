@@ -54,6 +54,10 @@ header.top p{margin:4px 0 0;color:var(--muted);font-size:.85rem}
 .f{display:flex;flex-direction:column;gap:3px;min-width:0}
 .f label{font-size:.75rem;color:var(--muted);font-weight:500}
 .f .hint{font-size:.7rem;color:var(--muted)}
+.rec{font-size:.74rem;color:var(--accent);display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin-top:2px}
+.rec b{font-family:var(--f-num)}
+.rec button{font-size:.72rem;padding:1px 8px;border-color:var(--accent);color:var(--accent);background:transparent}
+.rec .old{color:var(--muted)}
 input,select{font:inherit;font-size:.92rem;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 8px;width:100%;min-width:0}
 input[type=number]{font-family:var(--f-num);font-variant-numeric:tabular-nums}
 input:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
@@ -196,6 +200,9 @@ textarea#copyfallback{width:100%;min-height:160px;font-family:var(--f-num);font-
         <div class="f"><label for="st_welcome">ウェルカム割 GH/GD（円/kVA・kW・税込）</label><input id="st_welcome" type="number" step="1"></div>
         <div class="f"><label for="st_palCoef">パル 調達単価係数</label><input id="st_palCoef" type="number" step="0.01"><span class="hint">調達単価＝エリアプライス平均×係数</span></div>
         <div class="f"><label for="st_palPremDisc">パル動力プレミアム値引（円/kW・税込）</label><input id="st_palPremDisc" type="number" step="1"></div>
+        <div class="f"><label for="st_adjKw">安定供給維持費 調整金（円/kW・税抜）</label><input id="st_adjKw" type="number" step="0.01"><span class="hint">エネパルの通知書の単価。還元はマイナスで入力</span></div>
+        <div class="f"><label for="st_adjA">同 調整金 最低料金制（円/件・税抜）</label><input id="st_adjA" type="number" step="0.01"><span class="hint">関西・中国・四国の従量電灯A</span></div>
+        <div class="f"><label for="st_adjMonths">調整金を入れる明細月</label><input id="st_adjMonths" type="text" placeholder="例：2026-11, 2026-12"><span class="hint">空欄なら全行に入れます</span></div>
         <div class="f"><label for="st_palWelcome">パル動力 キャンペーン割（円/kW・税込）</label><input id="st_palWelcome" type="number" step="1"><span class="hint">電灯プランは基本料金（最低料金）全額無料。セレクト系は割引なしなのでチェックを外して試算</span></div>
       </div>
       <div class="scroll"><table class="settings" id="setTable"></table></div>
@@ -236,7 +243,7 @@ const BASE = {
 };
 // 現行託送単価（2026/11/1〜・税込）と損失率(%)。編集可。
 const DEFAULT_SET = {
-  stable:110, stableA:360, fee:0.03, welcome:100, welcomeGLmode:"free", welcomeGL:0, palCoef:1.2, palPremDisc:100, palWelcome:100,
+  stable:110, stableA:360, fee:0.03, welcome:100, welcomeGLmode:"free", welcomeGL:0, palCoef:1.2, palPremDisc:100, palWelcome:100, adjKw:0, adjA:0, adjMonths:"",
   area:{
     hokkaido:{loss:7.9,lb:381.70,lk:8.24,pb:603.90,pk:4.46,rb:8.5,ab:12.5},
     tohoku:{loss:8.5,lb:204.60,lk:9.92,pb:550.00,pk:9.87,rb:4.0,ab:8.0},
@@ -249,6 +256,34 @@ const DEFAULT_SET = {
     kyushu:{loss:8.6,lb:284.24,lk:7.80,pb:511.64,pk:5.53,rb:4.0,ab:8.0}
   }
 };
+// エネパル公表「電源調達調整費」の調達単価（税抜・円/kWh、エリア順：北海道〜九州）。エリアプライス月平均 ≒ 調達単価 ÷ 1.2
+// 新しい月が公表されたら、この表に1行追加してください。
+const PROC_DATA = {
+  "2025-06":[10.20,11.76,13.43,10.19,9.43,9.43,9.41,9.07,8.81],
+  "2025-07":[11.24,13.26,15.55,13.25,12.82,12.82,11.29,11.04,11.24],
+  "2025-08":[15.73,15.60,16.66,16.60,16.04,16.04,14.05,11.52,13.66],
+  "2025-09":[16.26,15.20,15.85,15.13,13.69,13.69,12.53,10.44,12.46],
+  "2025-10":[14.57,13.60,15.50,14.35,13.51,13.51,12.68,11.54,12.65],
+  "2025-11":[15.47,14.50,15.67,14.02,13.52,13.52,13.34,11.14,12.89],
+  "2025-12":[13.40,12.95,14.21,13.46,12.90,11.51,11.47,10.48,11.02],
+  "2026-01":[14.28,12.73,13.40,12.67,12.25,12.22,12.16,11.89,11.95],
+  "2026-02":[16.36,14.21,14.48,14.00,12.95,12.59,12.56,10.69,12.40],
+  "2026-03":[13.36,13.19,13.40,12.91,12.58,12.13,12.11,9.59,11.53],
+  "2026-04":[15.49,14.44,17.26,15.12,14.42,14.42,14.06,9.40,12.43],
+  "2026-05":[16.75,17.48,24.07,21.42,15.88,15.74,14.71,9.28,12.73],
+  "2026-06":[16.38,17.26,21.61,19.48,16.73,16.73,14.11,9.08,11.38],
+  "2026-07":[17.41,18.35,24.01,21.50,16.73,16.66,12.95,9.46,12.02],
+  "2026-08":[17.18,21.58,23.83,22.61,20.71,20.63,19.42,16.36,18.44],
+  "2026-09":[17.20,18.82,25.49,25.93,24.31,23.08,21.34,20.17,20.12]
+};
+function recAP(area, month){
+  if(!area) return null;
+  const idx = AREA_KEYS.indexOf(area), months = Object.keys(PROC_DATA).sort();
+  let m = month && PROC_DATA[month] ? month : null, latest = false;
+  if(!m){ m = months[months.length-1]; latest = true; }
+  const v = Math.round(PROC_DATA[m][idx]/1.2*100)/100;
+  return {v, m, latest};
+}
 const PLANS = {GL:"マーケットリンクGL",GH:"マーケットリンクGH",GD:"マーケットリンクGD",PP:"パルプレミアム／セレクト",PPL:"パルプレミアムライト／セレクトライト",PD:"パル動力プレミアム"};
 const PLAN_GROUPS = [["エネパル Type-G（市場連動）",["GL","GH","GD"]],["パルパワー（固定単価）",["PP","PPL","PD"]]];
 const isPal = p => p==="PP"||p==="PPL"||p==="PD";
@@ -381,6 +416,7 @@ function calc(r){
   if(typeA){ st=t2((+S.stableA||0)*(1+TAX)); stf=`従量電灯A 1件 ${fu(+S.stableA)}円 × 1.1`; }
   else { st=t2(capKW*(+S.stable||0)*(1+TAX)); stf=`${fmt(capKW,capKW%1?1:0)}kW換算 × ${fu(+S.stable)}円 × 1.1`; }
   items.push({k:"stable",label:"安定供給維持費",v:st,f:stf});
+  pushAdj(items,r,typeA,capKW);
 
   // 送配電事業者託送料金改定分（基本料金相当分のみ。GL/GH/GDとも託送従量単価を使うため電力量相当分は適用外）
   let tr, trf;
@@ -404,6 +440,17 @@ function calc(r){
   const total = yen(sum);
   const bill = +r.bill||0;
   return {items,total,bill,diff:bill?bill-total:null,kwh,warns};
+}
+
+// 安定供給維持費の調整金（約款別表：シェア変動調整金・年次再算定調整金。単価は通知書で案内される値を設定に入力）
+function adjApplies(month){
+  const t=(S.adjMonths||"").trim(); if(!t) return true;
+  return !!month && t.split(/[\s,、，]+/).filter(Boolean).includes(month);
+}
+function pushAdj(items,r,typeA,capKW){
+  if(!adjApplies(r.month)) return;
+  if(typeA){ const u=+S.adjA||0; if(u) items.push({k:"stadj",label:"安定供給維持費 調整金",v:t2(u*(1+TAX)),f:`1件 ${fu(u)}円 × 1.1${u<0?"（還元）":""}`}); }
+  else { const u=+S.adjKw||0; if(u) items.push({k:"stadj",label:"安定供給維持費 調整金",v:t2(capKW*u*(1+TAX)),f:`${fmt(capKW,capKW%1?1:0)}kW換算 × ${fu(u)}円 × 1.1${u<0?"（還元）":""}`}); }
 }
 
 // ---------- パルパワー（固定単価）----------
@@ -475,6 +522,7 @@ function calcPal(r){
   if(typeA){ st=t2((+S.stableA||0)*(1+TAX)); stf=`最低料金制 1件 ${fu(+S.stableA)}円 × 1.1`; }
   else { st=t2(capKW*(+S.stable||0)*(1+TAX)); stf=`${fmt(capKW,capKW%1?1:0)}kW換算 × ${fu(+S.stable)}円 × 1.1`; }
   items.push({k:"stable",label:"安定供給維持費",v:st,f:stf});
+  pushAdj(items,r,typeA,capKW);
 
   // 託送料金改定分（固定単価プランは基本料金相当分＋電力量相当分）
   let tb, tk, trf;
@@ -516,7 +564,7 @@ function rowHTML(r,i){
       <div class="f"><label for="month_${id}">取得明細月</label><input id="month_${id}" type="month" data-k="month" value="${r.month||""}"></div>
       <div class="f"><label for="cap_${id}">契約容量</label><div class="pair"><input id="cap_${id}" type="number" min="0" step="1" data-k="cap" value="${r.cap}"><select id="unit_${id}" data-k="unit" aria-label="単位">${unitOpts(r)}</select></div></div>
       <div class="f"><label for="kwh_${id}">使用電力量（kWh）</label><input id="kwh_${id}" type="number" min="0" step="1" data-k="kwh" value="${r.kwh}"></div>
-      <div class="f"><label for="ap_${id}">エリアプライス月平均（円/kWh）</label><input id="ap_${id}" type="number" min="0" step="0.01" data-k="ap" value="${r.ap}"><span class="hint">${isPal(r.plan)?"電源調達調整費の計算に使用（税抜）":"JEPXの税抜価格"}</span></div>
+      <div class="f"><label for="ap_${id}">エリアプライス月平均（円/kWh）</label><input id="ap_${id}" type="number" min="0" step="0.01" data-k="ap" value="${r.ap}"><span class="hint">${isPal(r.plan)?"電源調達調整費の計算に使用（税抜）":"JEPXの税抜価格"}</span><span class="rec" id="rec_${id}"></span></div>
       <div class="f"${isPal(r.plan)?" hidden":""}><label for="mgmt_${id}">供給管理費（円/kWh・税別）</label><input id="mgmt_${id}" type="number" min="0" step="0.5" data-k="mgmt" value="${r.mgmt}"><span class="hint">料金表：GL 12円／GH・GD なし</span></div>
       <div class="f"><label for="sub_${id}">国の支援値引（円/kWh）</label><input id="sub_${id}" type="number" min="0" step="0.1" data-k="sub" value="${r.sub??""}"><span class="hint">明細に補助がある月のみ</span></div>
       <div class="f"><label for="bill_${id}">取得明細料金（税込・円）</label><input id="bill_${id}" type="number" min="0" step="1" data-k="bill" value="${r.bill}"></div>
@@ -543,6 +591,8 @@ rowsEl.addEventListener("input", e=>{
   update();
 });
 rowsEl.addEventListener("click", e=>{
+  const u=e.target.closest('[data-act="useap"]');
+  if(u){ const card=u.closest("[data-id]"), r=rows.find(x=>x.id==card.dataset.id); r.ap=+u.dataset.v; card.querySelector('[data-k="ap"]').value=r.ap; update(); return; }
   const b=e.target.closest('[data-act="del"]'); if(!b) return;
   const id=b.closest("[data-id]").dataset.id;
   if(rows.length===1){toast("最後の1行は削除できません");return}
@@ -558,6 +608,14 @@ custEl.addEventListener("input",()=>{store.set("enepal_customer_v1",custEl.value
 let lastResults=[];
 function monthLabel(m,i){ if(!m) return `${i+1}行目`; const [y,mo]=m.split("-"); return `${y}年${+mo}月`; }
 function update(){
+  rows.forEach(r=>{
+    const el=document.getElementById("rec_"+r.id); if(!el) return;
+    const rc=recAP(r.area,r.month);
+    if(!rc){ el.innerHTML=""; return; }
+    const [y,mo]=rc.m.split("-");
+    const same = r.ap!=="" && +r.ap===rc.v;
+    el.innerHTML = `おすすめ <b>${rc.v.toFixed(2)}円</b><span class="${rc.latest?"old":""}">（${TARIFF[r.area].name} ${y}年${+mo}月${rc.latest?"・明細月のデータがないため直近月":""}）</span>`+(same?"":`<button type="button" data-act="useap" data-v="${rc.v}">入れる</button>`);
+  });
   store.set("enepal_rows_v2", rows.map(({id,...r})=>r));
   const res = rows.map(calc); lastResults=res;
   res.forEach((c,i)=>{
@@ -605,7 +663,7 @@ function renderBreakdown(res){
   const multi = res.length>1;
   const keys=[]; const seen={};
   res.forEach(c=>c.items.forEach(it=>{ if(!seen[it.k]){seen[it.k]=it;keys.push(it.k)} }));
-  const order=["basic","pdisc","welcome","energy","e1","e2","e3","e4","p1","p2","p3","chotatsu","saiene","stable","takuso","subsidy"];
+  const order=["basic","pdisc","welcome","energy","e1","e2","e3","e4","p1","p2","p3","chotatsu","saiene","stable","stadj","takuso","subsidy"];
   keys.sort((a,b)=>order.indexOf(a)-order.indexOf(b));
   let h=`<thead><tr><th>項目</th>${res.map((c,i)=>`<th>${monthLabel(R[i].month,i)}<br>${fmt(c.kwh)}kWh</th>`).join("")}${multi?"<th>合計</th>":""}</tr></thead><tbody>`;
   keys.forEach(k=>{
@@ -677,7 +735,7 @@ document.getElementById("copyText").onclick=()=>{
 // ---------- settings ----------
 const setTable=document.getElementById("setTable");
 function renderSettings(){
-  ["stable","stableA","fee","welcome","welcomeGLmode","welcomeGL","palCoef","palPremDisc","palWelcome"].forEach(k=>{document.getElementById("st_"+k).value=S[k]});
+  ["stable","stableA","fee","welcome","welcomeGLmode","welcomeGL","palCoef","palPremDisc","palWelcome","adjKw","adjA","adjMonths"].forEach(k=>{document.getElementById("st_"+k).value=S[k]});
   syncWelcomeGL();
   let h=`<thead><tr><th>エリア</th><th>損失率(%)</th><th>電灯 託送基本<br>(円/kVA・税込)</th><th>6kVAまで<br>(円・税込)</th><th>6kVA超<br>(円/kVA・税込)</th><th>電灯 託送従量<br>(円/kWh・税込)</th><th>動力 託送基本<br>(円/kW・税込)</th><th>動力 託送従量<br>(円/kWh・税込)</th><th>パル還元基準<br>(円/kWh・税抜)</th><th>パル追加請求基準<br>(円/kWh・税抜)</th></tr></thead><tbody>`;
   AREA_KEYS.forEach(k=>{
@@ -691,6 +749,7 @@ document.getElementById("setDetails").addEventListener("input",e=>{
   const el=e.target;
   if(el.dataset.a){ S.area[el.dataset.a][el.dataset.f]=+el.value; }
   else if(el.id==="st_welcomeGLmode"){ S.welcomeGLmode=el.value; syncWelcomeGL(); }
+  else if(el.id==="st_adjMonths"){ S.adjMonths=el.value; }
   else if(el.id && el.id.startsWith("st_")){ S[el.id.slice(3)]=+el.value; }
   else return;
   saveSettings(); update();
