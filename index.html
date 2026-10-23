@@ -190,7 +190,7 @@ textarea#copyfallback{width:100%;min-height:160px;font-family:var(--f-num);font-
       <div class="fields" style="margin-bottom:12px">
         <div class="f"><label for="st_stable">安定供給維持費（円/kW・税抜）</label><input id="st_stable" type="number" step="0.01"></div>
         <div class="f"><label for="st_stableA">同 関西・中国・四国の従量電灯A（円/件・税抜）</label><input id="st_stableA" type="number" step="0.01"></div>
-        <div class="f"><label for="st_fee">JEPX売買手数料（円/kWh・税抜）<span class="flag">要確認</span></label><input id="st_fee" type="number" step="0.0001"></div>
+        <div class="f"><label for="st_fee">JEPX売買手数料（円/kWh・税抜）</label><input id="st_fee" type="number" step="0.0001"><span class="hint">JEPX公表 2026年度：0.03円/kWh</span></div>
         <div class="f"><label for="st_welcomeGLmode">ウェルカム割 GL（従量電灯）の値引方法</label><select id="st_welcomeGLmode"><option value="free">基本料金を全額無料</option><option value="perKva">容量あたりで値引（円/kVA）</option><option value="fixed">月額で値引（円/月）</option></select></div>
         <div class="f"><label for="st_welcomeGL">ウェルカム割 GL 値引額（税込）</label><input id="st_welcomeGL" type="number" step="1" min="0"><span class="hint" id="welcomeGLhint"></span></div>
         <div class="f"><label for="st_welcome">ウェルカム割 GH/GD（円/kVA・kW・税込）</label><input id="st_welcome" type="number" step="1"></div>
@@ -236,7 +236,7 @@ const BASE = {
 };
 // 現行託送単価（2026/11/1〜・税込）と損失率(%)。編集可。
 const DEFAULT_SET = {
-  stable:110, stableA:360, fee:0, welcome:100, welcomeGLmode:"free", welcomeGL:0, palCoef:1.2, palPremDisc:100, palWelcome:100,
+  stable:110, stableA:360, fee:0.03, welcome:100, welcomeGLmode:"free", welcomeGL:0, palCoef:1.2, palPremDisc:100, palWelcome:100,
   area:{
     hokkaido:{loss:7.9,lb:381.70,lk:8.24,pb:603.90,pk:4.46,rb:8.5,ab:12.5},
     tohoku:{loss:8.5,lb:204.60,lk:9.92,pb:550.00,pk:9.87,rb:4.0,ab:8.0},
