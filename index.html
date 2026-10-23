@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>エネパル試算システム</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="エネパル試算">
+<meta name="theme-color" content="#0a6f6a">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Roboto+Mono:wght@500;600&display=swap">
+<style>
+[hidden]{display:none!important}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+img{max-width:100%}
+/* Layout: 左に明細月ごとの入力カード、右に合計サマリ（追従）。下にお客様向け内訳表と単価設定。 */
+:root{
+  --bg:#f3f5f6; --surface:#ffffff; --sunk:#eaeef0; --line:#d5dde1;
+  --ink:#15222a; --muted:#5c6c75; --accent:#0a6f6a; --accent-ink:#ffffff; --accent-soft:#dcefed;
+  --good:#1d7a3a; --good-soft:#e1f2e5; --bad:#b3322b; --bad-soft:#f8e3e1; --warn:#8a5a00; --warn-soft:#fbf0d6;
+  --f-ui:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif;
+  --f-num:"Roboto Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1519; --surface:#172027; --sunk:#1e2a32; --line:#2c3b45;
+  --ink:#e3eaee; --muted:#95a6b0; --accent:#3cbfb5; --accent-ink:#06201e; --accent-soft:#163a38;
+  --good:#5fcf7f; --good-soft:#163522; --bad:#f07a71; --bad-soft:#3d1c1a; --warn:#e7b44a; --warn-soft:#3a2d10; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1519; --surface:#172027; --sunk:#1e2a32; --line:#2c3b45;
+  --ink:#e3eaee; --muted:#95a6b0; --accent:#3cbfb5; --accent-ink:#06201e; --accent-soft:#163a38;
+  --good:#5fcf7f; --good-soft:#163522; --bad:#f07a71; --bad-soft:#3d1c1a; --warn:#e7b44a; --warn-soft:#3a2d10; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:14px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+h1,h2,h3{text-wrap:balance;margin:0;line-height:1.3}
+h1{font-size:1.45rem;font-weight:700}
+h2{font-size:1.08rem;font-weight:700}
+.eyebrow{font-size:.72rem;letter-spacing:.08em;color:var(--muted);font-weight:500}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+header.top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between;border-bottom:2px solid var(--ink);padding-bottom:12px}
+header.top p{margin:4px 0 0;color:var(--muted);font-size:.85rem}
+.cust{display:flex;gap:8px;align-items:center}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
+.rows{display:flex;flex-direction:column;gap:14px;min-width:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.row{padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.row-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.row-head .tag{font-weight:700}
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px 12px}
+.f{display:flex;flex-direction:column;gap:3px;min-width:0}
+.f label{font-size:.75rem;color:var(--muted);font-weight:500}
+.f .hint{font-size:.7rem;color:var(--muted)}
+input,select{font:inherit;font-size:.92rem;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 8px;width:100%;min-width:0}
+input[type=number]{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+input:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.pair{display:flex;gap:6px}.pair>:first-child{flex:1}.pair>select{width:80px;flex:none}
+.chk{flex-direction:row;align-items:center;gap:8px;padding-top:18px}
+.chk input{width:18px;height:18px}
+.row-out{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.85rem;border-top:1px dashed var(--line);padding-top:10px}
+.row-out b{font-family:var(--f-num);font-weight:600}
+.warns{display:flex;flex-direction:column;gap:4px}
+.warn{font-size:.78rem;background:var(--warn-soft);color:var(--warn);border-radius:4px;padding:4px 8px}
+button{font:inherit;cursor:pointer;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:7px 14px;font-weight:500}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted);padding:4px 8px}
+button.ghost:hover{color:var(--bad)}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.summary{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px);padding:18px;display:flex;flex-direction:column;gap:14px}
+@media (max-width:900px){.summary{position:static}}
+.sum-line{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.sum-line .v{font-family:var(--f-num);font-size:1.05rem;font-weight:600}
+.big{border-radius:6px;padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.big.good{background:var(--good-soft);color:var(--good)}
+.big.bad{background:var(--bad-soft);color:var(--bad)}
+.big.neutral{background:var(--sunk);color:var(--ink)}
+.big .lab{font-size:.78rem;font-weight:700}
+.big .val{font-family:var(--f-num);font-size:1.7rem;font-weight:600;line-height:1.2}
+.big .sub{font-size:.8rem}
+.small{font-size:.75rem;color:var(--muted)}
+section.block{padding:18px;display:flex;flex-direction:column;gap:12px}
+.scroll{overflow-x:auto;min-width:0}
+table{border-collapse:collapse;width:100%;font-size:.86rem}
+th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--surface)}
+thead th{font-size:.75rem;color:var(--muted);font-weight:500;border-bottom:2px solid var(--ink)}
+td.n{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+tr.sub td:first-child{padding-left:24px;color:var(--muted)}
+tr.tot td{font-weight:700;border-top:2px solid var(--ink);border-bottom:none}
+tr.cmp td{border-bottom:none}
+tr.diff td{font-weight:700}
+.pos{color:var(--good)}.neg{color:var(--bad)}
+details{border-top:1px solid var(--line);padding-top:10px}
+summary{cursor:pointer;font-weight:700;font-size:.9rem}
+.basis{display:flex;flex-direction:column;gap:14px;margin-top:10px}
+.basis h3{font-size:.88rem}
+.basis ul{margin:4px 0 0;padding-left:18px;font-size:.8rem;color:var(--muted)}
+.basis li span{font-family:var(--f-num);color:var(--ink)}
+.settings td input{width:92px;padding:4px 6px;font-size:.82rem;text-align:right}
+.flag{font-size:.68rem;background:var(--warn-soft);color:var(--warn);border-radius:3px;padding:1px 5px;margin-left:4px}
+.notes{font-size:.78rem;color:var(--muted);margin:0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:6px;font-size:.85rem}
+textarea#copyfallback{width:100%;min-height:160px;font-family:var(--f-num);font-size:.78rem;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">エネパル Type-G ／ マーケットリンク GL・GH・GD</div>
+      <h1>エネパル試算システム</h1>
+      <p>2026年11月1日改定の料金表・約款に沿って、明細1か月ごとの試算額と内訳を出します。</p>
+    </div>
+    <div class="f cust">
+      <label for="customer" style="white-space:nowrap">お客様名</label>
+      <input id="customer" placeholder="例：〇〇食堂 様">
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="rows">
+      <div id="rows" class="rows"></div>
+      <div class="actions">
+        <button class="primary" id="addRow" type="button">月を追加</button>
+        <button id="dupRow" type="button">最後の月を複製して追加</button>
+        <button id="resetRows" type="button">サンプルに戻す</button>
+      </div>
+    </div>
+
+    <aside class="card summary" aria-live="polite">
+      <div class="eyebrow">試算サマリ（入力した月の合計）</div>
+      <div class="sum-line"><span>現在の明細合計</span><span class="v" id="sBill">—</span></div>
+      <div class="sum-line"><span>エネパル試算合計</span><span class="v" id="sEst">—</span></div>
+      <div id="sBig" class="big neutral"><span class="lab">削減額</span><span class="val" id="sDiff">—</span><span class="sub" id="sRate"></span></div>
+      <div class="sum-line"><span>年間換算</span><span class="v" id="sYear">—</span></div>
+      <div class="small" id="sYearNote"></div>
+      <div class="actions">
+        <button class="primary" id="copyText" type="button">内訳をテキストでコピー</button>
+      </div>
+      <textarea id="copyfallback" hidden readonly aria-label="コピー用テキスト"></textarea>
+      <div class="small">LINEやメールに貼り付けてお客様に送れます。画面の内訳表をそのままスクリーンショットしてもお使いいただけます。</div>
+    </aside>
+  </div>
+
+  <section class="card block">
+    <div>
+      <div class="eyebrow">お客様向け</div>
+      <h2 id="bdTitle">ご請求額の試算内訳（税込）</h2>
+    </div>
+    <div class="scroll"><table id="bd"></table></div>
+    <details>
+      <summary>計算根拠を表示（月ごとの式）</summary>
+      <div class="basis" id="basis"></div>
+    </details>
+    <ul class="notes">
+      <li>市場連動分はエリアプライスの月平均で計算しています。実際は30分ごとの価格×使用量で決まるため、昼間や夕方の使用が多いと実額は上下します。</li>
+      <li>市場価格が高い月は、約款の支払繰延規定により一部が3か月後の請求に回ることがあります（この試算は繰延前の総額です）。</li>
+      <li>再エネ賦課金は明細月に合わせた単価（2026年5月検針分〜は4.18円/kWh）で計算しています。</li>
+      <li>ウェルカム割は5年契約・事業用が条件で、供給開始後3か月間の適用です。</li>
+    </ul>
+  </section>
+
+  <section class="card block">
+    <details id="setDetails">
+      <summary>単価設定（託送料金・損失率など）</summary>
+      <p class="small" style="margin:8px 0">料金表や託送料金が改定されたらここを書き換えてください。変更はこの端末のブラウザに保存されます。<span class="flag">要確認</span>が付いた値は公表値が取れず暫定です。</p>
+      <div class="fields" style="margin-bottom:12px">
+        <div class="f"><label for="st_stable">安定供給維持費（円/kW・税抜）</label><input id="st_stable" type="number" step="0.01"></div>
+        <div class="f"><label for="st_stableA">同 関西・中国・四国の従量電灯A（円/件・税抜）</label><input id="st_stableA" type="number" step="0.01"></div>
+        <div class="f"><label for="st_fee">JEPX売買手数料（円/kWh・税抜）<span class="flag">要確認</span></label><input id="st_fee" type="number" step="0.0001"></div>
+        <div class="f"><label for="st_welcomeGLmode">ウェルカム割 GL（従量電灯）の値引方法</label><select id="st_welcomeGLmode"><option value="free">基本料金を全額無料</option><option value="perKva">容量あたりで値引（円/kVA）</option><option value="fixed">月額で値引（円/月）</option></select></div>
+        <div class="f"><label for="st_welcomeGL">ウェルカム割 GL 値引額（税込）</label><input id="st_welcomeGL" type="number" step="1" min="0"><span class="hint" id="welcomeGLhint"></span></div>
+        <div class="f"><label for="st_welcome">ウェルカム割 GH/GD（円/kVA・kW・税込）</label><input id="st_welcome" type="number" step="1"></div>
+      </div>
+      <div class="scroll"><table class="settings" id="setTable"></table></div>
+      <div class="actions" style="margin-top:12px"><button id="resetSettings" type="button">設定を初期値に戻す</button></div>
+    </details>
+  </section>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+"use strict";
+const TAX = 0.10;
+const AREA_KEYS = ["hokkaido","tohoku","kanto","chubu","hokuriku","kansai","chugoku","shikoku","kyushu"];
+// 料金表【エネパルType-G】2026年11月1日改定版（税込）
+const TARIFF = {
+  hokkaido:{name:"北海道",zone:1,glA:{20:644.16,30:966.24,40:1288.32,50:1610.40,60:1932.48},glKva:322.08,gh:1266.10,gd:1269.69},
+  tohoku:{name:"東北",zone:1,glA:{20:591.36,30:887.04,40:1182.72,50:1478.40,60:1774.08},glKva:295.68,gh:1216.60,gd:1198.76},
+  kanto:{name:"東京",zone:1,glA:{20:498.80,30:748.20,40:997.60,50:1247.00,60:1496.40},glKva:249.40,gh:1220.67,gd:1011.84},
+  chubu:{name:"中部",zone:1,glA:{20:513.82,30:770.73,40:1027.64,50:1284.56,60:1541.47},glKva:256.91,gh:1204.50,gd:1109.61},
+  hokuriku:{name:"北陸",zone:1,glA:{20:484.00,30:726.00,40:968.00,50:1210.00,60:1452.00},glKva:242.00,gh:1232.00,gd:1130.21},
+  kansai:{name:"関西",zone:2,glBase:365.80,glEx:116.16,gh:1080.87,gd:1043.78},
+  chugoku:{name:"中国",zone:2,glBase:531.77,glEx:130.68,gh:1092.23,gd:1072.55},
+  shikoku:{name:"四国",zone:2,glBase:466.82,glEx:145.20,gh:1103.59,gd:1090.78},
+  kyushu:{name:"九州",zone:1,glA:{20:505.98,30:758.97,40:1011.96,50:1264.96,60:1517.95},glKva:252.99,gh:1217.38,gd:942.90}
+};
+// 送配電事業者託送料金改定分の基準単価（電気供給約款別冊 2026/11/1・税抜）
+const BASE = {
+  hokkaido:{lb:201.00,lk:7.18,pb:337.00,pk:3.84},
+  tohoku:{lb:151.00,lk:7.80,pb:416.00,pk:7.79},
+  kanto:{lb:138.40,lk:6.34,pb:419.22,pk:4.13},
+  chubu:{lb:125.00,lk:7.19,pb:375.00,pk:5.52},
+  hokuriku:{lb:175.00,lk:6.21,pb:360.00,pk:4.26},
+  kansai:{li:219.00,lx:73.00,lk:6.93,pb:344.00,pk:4.26},
+  chugoku:{li:244.00,lx:81.00,lk:8.26,pb:424.00,pk:5.52},
+  shikoku:{li:270.00,lx:90.00,lk:8.02,pb:413.00,pk:5.43},
+  kyushu:{lb:147.49,lk:7.15,pb:344.78,pk:5.07}
+};
+// 現行託送単価（2026/11/1〜・税込）と損失率(%)。編集可。
+const DEFAULT_SET = {
+  stable:110, stableA:360, fee:0, welcome:100, welcomeGLmode:"free", welcomeGL:0,
+  area:{
+    hokkaido:{loss:7.9,lb:381.70,lk:8.24,pb:603.90,pk:4.46},
+    tohoku:{loss:8.5,lb:204.60,lk:9.92,pb:550.00,pk:9.87},
+    kanto:{loss:6.9,lb:152.24,lk:6.97,pb:461.14,pk:4.54,flag:true},
+    chubu:{loss:7.1,lb:263.43,lk:7.91,pb:560.01,pk:6.07},
+    hokuriku:{loss:7.8,lb:192.50,lk:6.83,pb:396.00,pk:4.69},
+    kansai:{loss:7.8,li:412.50,lx:137.50,lk:8.25,pb:468.60,pk:5.10},
+    chugoku:{loss:8.0,li:442.00,lx:147.33,lk:9.63,pb:545.38,pk:6.44},
+    shikoku:{loss:8.1,li:528.00,lx:176.00,lk:9.54,pb:574.20,pk:6.46},
+    kyushu:{loss:8.6,lb:284.24,lk:7.80,pb:511.64,pk:5.53}
+  }
+};
+const PLANS = {GL:"マーケットリンクGL",GH:"マーケットリンクGH",GD:"マーケットリンクGD"};
+
+const store = {
+  get(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null}catch(e){return null}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+};
+const clone = o => JSON.parse(JSON.stringify(o));
+let S = store.get("enepal_settings_v1") || clone(DEFAULT_SET);
+for (const k of AREA_KEYS) if(!S.area[k]) S.area[k]=clone(DEFAULT_SET.area[k]);
+for (const k of Object.keys(DEFAULT_SET)) if(k!=="area" && S[k]===undefined) S[k]=DEFAULT_SET[k];
+
+const SAMPLE = [
+  {plan:"GL",area:"chubu",month:"2026-08",cap:8,unit:"kVA",kwh:620,ap:10.5,mgmt:12,welcome:true,sub:0,bill:26400},
+  {plan:"GL",area:"chubu",month:"2026-09",cap:8,unit:"kVA",kwh:540,ap:9.8,mgmt:12,welcome:true,sub:0,bill:23600}
+];
+let rows = store.get("enepal_rows_v1") || clone(SAMPLE);
+let uid = 0; rows.forEach(r=>r.id=++uid);
+const custEl = document.getElementById("customer");
+custEl.value = store.get("enepal_customer_v1") || "";
+
+// ---------- calc ----------
+const t2 = x => Math.trunc(x*100 + (x>=0?1e-7:-1e-7))/100;
+const yen = x => Math.floor(x + 1e-7);
+const fmt = (x,d=0) => (x<0?"−":"") + Math.abs(x).toLocaleString("ja-JP",{minimumFractionDigits:d,maximumFractionDigits:d});
+const fu = x => fmt(x,2);
+
+function saieneRate(month){
+  if(!month) return 4.18;
+  if(month >= "2026-05") return 4.18;
+  if(month >= "2025-05") return 3.98;
+  if(month >= "2024-05") return 3.49;
+  return 1.40;
+}
+
+function calc(r){
+  const T = TARIFF[r.area], A = S.area[r.area], B = BASE[r.area];
+  const items = [], warns = [];
+  const kwh = Math.max(0, Math.round(+r.kwh||0));
+  const ap = +r.ap||0, cap = +r.cap||0, loss = (+A.loss||0)/100;
+  let kva = r.unit==="A" ? cap/10 : cap;            // 電灯の容量（kVA換算）
+  const capKW = r.unit==="A" ? cap/10 : cap;        // 安定供給維持費用（10A=1kW, 1kVA=1kW）
+  const isPower = r.plan==="GD";
+  let basic=0, basicF="", typeA=false;
+
+  if(r.plan==="GL"){
+    if(T.zone===1){
+      if(r.unit==="A"){
+        const a = T.glA[cap];
+        if(a===undefined){warns.push("従量電灯Bの契約電流は20〜60A（10A刻み）で入力してください。");}
+        basic = a||0; basicF = `従量電灯B ${cap}A ＝ ${fu(basic)}円`;
+      } else {
+        if(cap<6) warns.push("6kVA未満の場合は単位を「A」にして契約電流で入力してください。");
+        basic = cap*T.glKva; basicF = `${cap}kVA × ${fu(T.glKva)}円`;
+      }
+    } else {
+      if(cap<6){ typeA=true; basic=T.glBase; basicF=`従量電灯A（6kVA未満）1需要場所 ${fu(T.glBase)}円`; }
+      else { basic = T.glBase + (cap-6)*T.glEx; basicF = `6kVAまで ${fu(T.glBase)}円 ＋ ${fmt(cap-6,cap%1?1:0)}kVA × ${fu(T.glEx)}円`; }
+    }
+  } else if(r.plan==="GH"){
+    if(cap<6) warns.push("マーケットリンクGHは6kVA以上の契約が対象です。");
+    basic = cap*T.gh; basicF = `${cap}kVA × ${fu(T.gh)}円`;
+  } else {
+    basic = cap*T.gd; basicF = `${cap}kW × ${fu(T.gd)}円`;
+  }
+  if(kwh===0){ basic = basic/2; basicF += "（使用量0のため半額）"; }
+  basic = t2(basic);
+  items.push({k:"basic",label:"基本料金",v:basic,f:basicF});
+
+  if(r.welcome){
+    let w, wf;
+    if(r.plan==="GL"){
+      const m=S.welcomeGLmode||"free", u=+S.welcomeGL||0;
+      if(m==="perKva"){ w=-Math.min(basic, t2(u*kva)); wf=`キャンペーン割引：${fmt(kva,kva%1?1:0)}kVA × ${fu(u)}円 値引（基本料金が上限）`; }
+      else if(m==="fixed"){ w=-Math.min(basic, u); wf=`キャンペーン割引：月額 ${fu(u)}円 値引（基本料金が上限）`; }
+      else { w=-basic; wf="キャンペーン割引：基本料金を全額無料"; }
+    }
+    else { const u=+S.welcome||0; w=-Math.min(basic, t2(u*cap)); wf=`キャンペーン割引：${cap}${isPower?"kW":"kVA"} × ${fu(u)}円 値引`; }
+    items.push({k:"welcome",label:"キャンペーン割引",v:t2(w),f:wf});
+  }
+
+  // 電力量料金
+  const tk = isPower ? +A.pk : +A.lk;
+  const e1 = t2(kwh*tk);
+  const e2 = t2(kwh*ap/(1-loss)*(1+TAX));
+  const fee = +S.fee||0;
+  const e3 = t2(kwh*fee/(1-loss)*(1+TAX));
+  const mg = r.plan==="GL" ? (+r.mgmt||0) : (+r.mgmt||0);
+  const e4 = t2(kwh*mg*(1+TAX));
+  const eTot = t2(e1+e2+e3+e4);
+  items.push({k:"energy",label:"電力量料金",v:eTot,f:"下記4項目の合計",group:true});
+  items.push({k:"e1",label:"託送従量分",v:e1,f:`${fmt(kwh)}kWh × ${fu(tk)}円（${T.name}エリア${isPower?"動力":"電灯"}託送単価・税込）`,sub:true});
+  items.push({k:"e2",label:"市場連動分",v:e2,f:`${fmt(kwh)}kWh × ${fu(ap)}円 ÷ (1−損失率${(loss*100).toFixed(1)}%) × 1.1　＝ 実質 ${fu(ap/(1-loss)*1.1)}円/kWh`,sub:true});
+  items.push({k:"e3",label:"市場取引手数料",v:e3,f:`${fmt(kwh)}kWh × ${fee}円 ÷ (1−損失率) × 1.1`,sub:true});
+  items.push({k:"e4",label:"供給管理費",v:e4,f:`${fmt(kwh)}kWh × ${fu(mg)}円 × 1.1`,sub:true});
+  if(r.plan!=="GL" && mg>0) warns.push("料金表上、供給管理費はGLのみです。GH・GDで入れる場合は条件をご確認ください。");
+
+  const sr = saieneRate(r.month);
+  const sa = yen(kwh*sr);
+  items.push({k:"saiene",label:"再エネ賦課金",v:sa,f:`${fmt(kwh)}kWh × ${sr.toFixed(2)}円（1円未満切捨）`});
+
+  let st, stf;
+  if(typeA){ st=t2((+S.stableA||0)*(1+TAX)); stf=`従量電灯A 1件 ${fu(+S.stableA)}円 × 1.1`; }
+  else { st=t2(capKW*(+S.stable||0)*(1+TAX)); stf=`${fmt(capKW,capKW%1?1:0)}kW換算 × ${fu(+S.stable)}円 × 1.1`; }
+  items.push({k:"stable",label:"安定供給維持費",v:st,f:stf});
+
+  // 送配電事業者託送料金改定分（基本料金相当分のみ。GL/GH/GDとも託送従量単価を使うため電力量相当分は適用外）
+  let tr, trf;
+  if(isPower){
+    const d = (+A.pb)/(1+TAX) - B.pb;
+    tr = t2(cap*d*(1+TAX)); trf = `${cap}kW × (${fu(+A.pb/(1+TAX))} − 基準${fu(B.pb)}) × 1.1`;
+  } else if(T.zone===1){
+    const d = (+A.lb)/(1+TAX) - B.lb;
+    tr = t2(kva*d*(1+TAX)); trf = `${fmt(kva,kva%1?1:0)}kVA × (${fu(+A.lb/(1+TAX))} − 基準${fu(B.lb)}) × 1.1`;
+  } else {
+    const d1 = (+A.li)/(1+TAX) - B.li, ex = Math.max(0,kva-6), d2 = (+A.lx)/(1+TAX) - B.lx;
+    tr = t2((d1 + ex*d2)*(1+TAX));
+    trf = `6kVAまで (${fu(+A.li/(1+TAX))} − 基準${fu(B.li)})` + (ex>0?` ＋ ${fmt(ex,ex%1?1:0)}kVA × (${fu(+A.lx/(1+TAX))} − 基準${fu(B.lx)})`:"") + " × 1.1";
+  }
+  items.push({k:"takuso",label:"託送料金改定分",v:tr,f:trf});
+
+  const subU = +r.sub||0;
+  if(subU>0) items.push({k:"subsidy",label:"国の電気料金支援",v:t2(-kwh*subU),f:`${fmt(kwh)}kWh × −${fu(subU)}円`});
+
+  const sum = items.filter(i=>!i.sub).reduce((a,i)=>a+i.v,0);
+  const total = yen(sum);
+  const bill = +r.bill||0;
+  return {items,total,bill,diff:bill?bill-total:null,kwh,warns};
+}
+
+// ---------- rows UI ----------
+const rowsEl = document.getElementById("rows");
+function areaOpts(sel){return AREA_KEYS.map(k=>`<option value="${k}"${k===sel?" selected":""}>${TARIFF[k].name}電力エリア</option>`).join("")}
+function planOpts(sel){return Object.keys(PLANS).map(k=>`<option value="${k}"${k===sel?" selected":""}>${PLANS[k]}</option>`).join("")}
+function unitOpts(r){
+  const list = r.plan==="GD" ? ["kW"] : (r.plan==="GL" && TARIFF[r.area].zone===1 ? ["kVA","A"] : ["kVA"]);
+  if(!list.includes(r.unit)) r.unit = list[0];
+  return list.map(u=>`<option${u===r.unit?" selected":""}>${u}</option>`).join("");
+}
+function rowHTML(r,i){
+  const id=r.id;
+  return `<div class="card row" data-id="${id}">
+    <div class="row-head"><span class="tag">${i+1}か月目</span><button class="ghost" type="button" data-act="del" aria-label="この月を削除">削除</button></div>
+    <div class="fields">
+      <div class="f"><label for="plan_${id}">契約プラン</label><select id="plan_${id}" data-k="plan">${planOpts(r.plan)}</select></div>
+      <div class="f"><label for="area_${id}">エリア</label><select id="area_${id}" data-k="area">${areaOpts(r.area)}</select></div>
+      <div class="f"><label for="month_${id}">取得明細月</label><input id="month_${id}" type="month" data-k="month" value="${r.month||""}"></div>
+      <div class="f"><label for="cap_${id}">契約容量</label><div class="pair"><input id="cap_${id}" type="number" min="0" step="1" data-k="cap" value="${r.cap}"><select id="unit_${id}" data-k="unit" aria-label="単位">${unitOpts(r)}</select></div></div>
+      <div class="f"><label for="kwh_${id}">使用電力量（kWh）</label><input id="kwh_${id}" type="number" min="0" step="1" data-k="kwh" value="${r.kwh}"></div>
+      <div class="f"><label for="ap_${id}">エリアプライス月平均（円/kWh）</label><input id="ap_${id}" type="number" min="0" step="0.01" data-k="ap" value="${r.ap}"><span class="hint">JEPXの税抜価格</span></div>
+      <div class="f"><label for="mgmt_${id}">供給管理費（円/kWh・税別）</label><input id="mgmt_${id}" type="number" min="0" step="0.5" data-k="mgmt" value="${r.mgmt}"><span class="hint">料金表：GL 12円／GH・GD なし</span></div>
+      <div class="f"><label for="sub_${id}">国の支援値引（円/kWh）</label><input id="sub_${id}" type="number" min="0" step="0.1" data-k="sub" value="${r.sub||0}"><span class="hint">明細に補助がある月のみ</span></div>
+      <div class="f"><label for="bill_${id}">取得明細料金（税込・円）</label><input id="bill_${id}" type="number" min="0" step="1" data-k="bill" value="${r.bill}"></div>
+      <div class="f chk"><input id="wel_${id}" type="checkbox" data-k="welcome"${r.welcome?" checked":""}><label for="wel_${id}" style="font-size:.85rem;color:var(--ink)">ウェルカム割を適用</label></div>
+    </div>
+    <div class="warns" id="w_${id}"></div>
+    <div class="row-out" id="o_${id}"></div>
+  </div>`;
+}
+function renderRows(){
+  rowsEl.innerHTML = rows.map(rowHTML).join("");
+  update();
+}
+rowsEl.addEventListener("input", e=>{
+  const el=e.target, card=el.closest("[data-id]"); if(!card||!el.dataset.k) return;
+  const r=rows.find(x=>x.id==card.dataset.id); const k=el.dataset.k;
+  r[k] = el.type==="checkbox" ? el.checked : (el.type==="number" ? (el.value===""?"":+el.value) : el.value);
+  if(k==="plan"){ r.mgmt = r.plan==="GL"?12:0; if(r.plan==="GD") r.unit="kW"; else if(r.unit==="kW") r.unit="kVA"; }
+  if(k==="plan"||k==="area"){
+    const sel=card.querySelector('[data-k="unit"]'); sel.innerHTML=unitOpts(r);
+    card.querySelector('[data-k="mgmt"]').value=r.mgmt;
+  }
+  update();
+});
+rowsEl.addEventListener("click", e=>{
+  const b=e.target.closest('[data-act="del"]'); if(!b) return;
+  const id=b.closest("[data-id]").dataset.id;
+  if(rows.length===1){toast("最後の1か月は削除できません");return}
+  rows = rows.filter(x=>x.id!=id); renderRows();
+});
+function nextMonth(m){ if(!m) return ""; let [y,mo]=m.split("-").map(Number); mo++; if(mo>12){mo=1;y++} return `${y}-${String(mo).padStart(2,"0")}`; }
+document.getElementById("addRow").onclick=()=>{ const l=rows[rows.length-1]; rows.push({id:++uid,plan:l.plan,area:l.area,month:nextMonth(l.month),cap:l.cap,unit:l.unit,kwh:"",ap:"",mgmt:l.mgmt,welcome:l.welcome,sub:0,bill:""}); renderRows(); };
+document.getElementById("dupRow").onclick=()=>{ const l=rows[rows.length-1]; rows.push({...clone(l),id:++uid,month:nextMonth(l.month)}); renderRows(); };
+document.getElementById("resetRows").onclick=()=>{ rows=clone(SAMPLE); rows.forEach(r=>r.id=++uid); renderRows(); toast("サンプルに戻しました"); };
+custEl.addEventListener("input",()=>{store.set("enepal_customer_v1",custEl.value);update()});
+
+// ---------- outputs ----------
+let lastResults=[];
+function monthLabel(m,i){ if(!m) return `${i+1}か月目`; const [y,mo]=m.split("-"); return `${y}年${+mo}月`; }
+function update(){
+  store.set("enepal_rows_v1", rows.map(({id,...r})=>r));
+  const res = rows.map(calc); lastResults=res;
+  res.forEach((c,i)=>{
+    const r=rows[i];
+    document.getElementById("w_"+r.id).innerHTML = c.warns.map(w=>`<div class="warn">${w}</div>`).join("");
+    const d = c.diff;
+    document.getElementById("o_"+r.id).innerHTML =
+      `<span>試算額 <b>${fmt(c.total)}円</b></span>` +
+      (c.bill?`<span>明細 <b>${fmt(c.bill)}円</b></span><span class="${d>=0?"pos":"neg"}">差額 <b>${d>=0?"":"+"}${fmt(Math.abs(d))}円${d>=0?" 安い":" 高い"}</b></span>`:"") +
+      (c.kwh?`<span>実質単価 <b>${fu(c.total/c.kwh)}円/kWh</b></span>`:"");
+  });
+  // summary
+  const withBill = res.filter(c=>c.bill>0);
+  const est = res.reduce((a,c)=>a+c.total,0);
+  const bill = withBill.reduce((a,c)=>a+c.bill,0);
+  const estB = withBill.reduce((a,c)=>a+c.total,0);
+  const diff = bill-estB;
+  document.getElementById("sBill").textContent = withBill.length?fmt(bill)+"円":"—";
+  document.getElementById("sEst").textContent = fmt(est)+"円";
+  const big=document.getElementById("sBig");
+  if(withBill.length){
+    big.className="big "+(diff>0?"good":diff<0?"bad":"neutral");
+    big.querySelector(".lab").textContent = diff>=0?"削減額":"増加額";
+    document.getElementById("sDiff").textContent = fmt(Math.abs(diff))+"円";
+    document.getElementById("sRate").textContent = `${(Math.abs(diff)/bill*100).toFixed(1)}% ${diff>=0?"安くなる見込み":"高くなる見込み"}`;
+    const yr = diff/withBill.length*12;
+    document.getElementById("sYear").textContent = (yr>=0?"":"−")+fmt(Math.abs(Math.round(yr)))+"円";
+    document.getElementById("sYearNote").textContent = withBill.length<12?`${withBill.length}か月分の平均 × 12か月で換算しています。`:"";
+  } else {
+    big.className="big neutral"; big.querySelector(".lab").textContent="削減額";
+    document.getElementById("sDiff").textContent="—"; document.getElementById("sRate").textContent="明細料金を入れると比較できます";
+    document.getElementById("sYear").textContent="—"; document.getElementById("sYearNote").textContent="";
+  }
+  renderBreakdown(res);
+}
+
+function renderBreakdown(res){
+  const cust=custEl.value.trim();
+  document.getElementById("bdTitle").textContent = (cust?cust+"　":"")+"ご請求額の試算内訳（税込）";
+  const multi = res.length>1;
+  const keys=[]; const seen={};
+  res.forEach(c=>c.items.forEach(it=>{ if(!seen[it.k]){seen[it.k]=it;keys.push(it.k)} }));
+  const order=["basic","welcome","energy","e1","e2","e3","e4","saiene","stable","takuso","subsidy"];
+  keys.sort((a,b)=>order.indexOf(a)-order.indexOf(b));
+  let h=`<thead><tr><th>項目</th>${res.map((c,i)=>`<th>${monthLabel(rows[i].month,i)}<br>${fmt(c.kwh)}kWh</th>`).join("")}${multi?"<th>合計</th>":""}</tr></thead><tbody>`;
+  keys.forEach(k=>{
+    const it=seen[k]; const vals=res.map(c=>{const x=c.items.find(i=>i.k===k);return x?x.v:0});
+    const tot=vals.reduce((a,b)=>a+b,0);
+    h+=`<tr class="${it.sub?"sub":""}"><td>${it.label}</td>${vals.map(v=>`<td class="n">${fu(v)}</td>`).join("")}${multi?`<td class="n">${fu(t2(tot))}</td>`:""}</tr>`;
+  });
+  const T=res.map(c=>c.total), tT=T.reduce((a,b)=>a+b,0);
+  h+=`<tr class="tot"><td>エネパル試算額</td>${T.map(v=>`<td class="n">${fmt(v)}円</td>`).join("")}${multi?`<td class="n">${fmt(tT)}円</td>`:""}</tr>`;
+  if(res.some(c=>c.bill)){
+    const B=res.map(c=>c.bill), tB=B.reduce((a,b)=>a+b,0);
+    h+=`<tr class="cmp"><td>現在のご請求額（明細）</td>${B.map(v=>`<td class="n">${v?fmt(v)+"円":"—"}</td>`).join("")}${multi?`<td class="n">${fmt(tB)}円</td>`:""}</tr>`;
+    const D=res.map(c=>c.diff), tD=res.filter(c=>c.bill).reduce((a,c)=>a+c.diff,0);
+    const cell=d=>d===null?"<td class=\"n\">—</td>":`<td class="n ${d>=0?"pos":"neg"}">${d>=0?"▼":"▲"}${fmt(Math.abs(d))}円</td>`;
+    h+=`<tr class="diff"><td>差額（▼は削減）</td>${D.map(cell).join("")}${multi?cell(tD):""}</tr>`;
+  }
+  h+="</tbody>";
+  document.getElementById("bd").innerHTML=h;
+  // basis
+  document.getElementById("basis").innerHTML = res.map((c,i)=>{
+    const r=rows[i];
+    return `<div><h3>${monthLabel(r.month,i)}　${PLANS[r.plan]}／${TARIFF[r.area].name}エリア</h3><ul>${
+      c.items.filter(it=>!it.group).map(it=>`<li>${it.label}：<span>${fu(it.v)}円</span>　${it.f}</li>`).join("")
+    }<li>合計：小数点以下の合計を1円未満切捨て → <span>${fmt(c.total)}円</span></li></ul></div>`;
+  }).join("");
+}
+
+// ---------- copy ----------
+function buildText(){
+  const cust=custEl.value.trim(); const res=lastResults;
+  let t=`【エネパル 電気料金 試算内訳】${cust?"\n"+cust:""}\n`;
+  res.forEach((c,i)=>{
+    const r=rows[i];
+    t+=`\n■ ${monthLabel(r.month,i)}（${PLANS[r.plan]}／${TARIFF[r.area].name}エリア／${fmt(c.kwh)}kWh）\n`;
+    c.items.forEach(it=>{ t+=`${it.sub?"　・":"・"}${it.label}：${fu(it.v)}円\n`; });
+    t+=`→ 試算額：${fmt(c.total)}円（税込）\n`;
+    if(c.bill) t+=`　現在のご請求：${fmt(c.bill)}円 ／ 差額：${c.diff>=0?"▼":"▲"}${fmt(Math.abs(c.diff))}円\n`;
+  });
+  const wb=res.filter(c=>c.bill);
+  if(wb.length){
+    const d=wb.reduce((a,c)=>a+c.diff,0);
+    t+=`\n合計差額：${d>=0?"▼":"▲"}${fmt(Math.abs(d))}円（${wb.length}か月）\n年間換算：約${fmt(Math.abs(Math.round(d/wb.length*12)))}円の${d>=0?"削減":"増加"}見込み\n`;
+  }
+  t+=`\n※市場連動分はエリアプライス月平均での概算です。実際の料金は30分ごとの市場価格により変動します。`;
+  return t;
+}
+document.getElementById("copyText").onclick=()=>{
+  const txt=buildText(); const fb=document.getElementById("copyfallback");
+  const show=()=>{fb.value=txt;fb.hidden=false;fb.focus();fb.select();toast("下の欄を選択しました。コピーしてお使いください")};
+  try{ navigator.clipboard.writeText(txt).then(()=>{fb.hidden=true;toast("内訳をコピーしました")},show); }catch(e){ show(); }
+};
+
+// ---------- settings ----------
+const setTable=document.getElementById("setTable");
+function renderSettings(){
+  ["stable","stableA","fee","welcome","welcomeGLmode","welcomeGL"].forEach(k=>{document.getElementById("st_"+k).value=S[k]});
+  syncWelcomeGL();
+  let h=`<thead><tr><th>エリア</th><th>損失率(%)</th><th>電灯 託送基本<br>(円/kVA・税込)</th><th>6kVAまで<br>(円・税込)</th><th>6kVA超<br>(円/kVA・税込)</th><th>電灯 託送従量<br>(円/kWh・税込)</th><th>動力 託送基本<br>(円/kW・税込)</th><th>動力 託送従量<br>(円/kWh・税込)</th></tr></thead><tbody>`;
+  AREA_KEYS.forEach(k=>{
+    const a=S.area[k], z=TARIFF[k].zone;
+    const inp=(f)=>a[f]===undefined?`<td class="small">—</td>`:`<td><input type="number" step="0.01" id="set_${k}_${f}" data-a="${k}" data-f="${f}" value="${a[f]}" aria-label="${TARIFF[k].name} ${f}"></td>`;
+    h+=`<tr><td>${TARIFF[k].name}${DEFAULT_SET.area[k].flag?'<span class="flag">要確認</span>':""}</td>${inp("loss")}${z===1?inp("lb"):'<td class="small">—</td>'}${z===2?inp("li"):'<td class="small">—</td>'}${z===2?inp("lx"):'<td class="small">—</td>'}${inp("lk")}${inp("pb")}${inp("pk")}</tr>`;
+  });
+  setTable.innerHTML=h+"</tbody>";
+}
+document.getElementById("setDetails").addEventListener("input",e=>{
+  const el=e.target;
+  if(el.dataset.a){ S.area[el.dataset.a][el.dataset.f]=+el.value; }
+  else if(el.id==="st_welcomeGLmode"){ S.welcomeGLmode=el.value; syncWelcomeGL(); }
+  else if(el.id && el.id.startsWith("st_")){ S[el.id.slice(3)]=+el.value; }
+  else return;
+  store.set("enepal_settings_v1",S); update();
+});
+document.getElementById("resetSettings").onclick=()=>{S=clone(DEFAULT_SET);store.set("enepal_settings_v1",S);renderSettings();update();toast("設定を初期値に戻しました")};
+
+function syncWelcomeGL(){
+  const m=S.welcomeGLmode||"free", inp=document.getElementById("st_welcomeGL"), h=document.getElementById("welcomeGLhint");
+  inp.disabled = m==="free";
+  h.textContent = m==="free" ? "全額無料のため入力不要" : m==="perKva" ? "円/kVA（Aは10A＝1kVAで換算）" : "円/月";
+}
+
+let tt; function toast(m){const t=document.getElementById("toast");t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2200)}
+
+window.__calc = calc;
+renderSettings(); renderRows();
+})();
+</script>
+
+</body>
+</html>
