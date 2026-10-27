@@ -334,6 +334,8 @@ custEl.value = store.get("enepal_customer_v1") || "";
 // ---------- calc ----------
 const t2 = x => Math.trunc(x*100 + (x>=0?1e-7:-1e-7))/100;
 const yen = x => Math.floor(x + 1e-7);
+// 税込の託送単価を税抜に戻す（託送単価は税抜で小数第2位まで定められているため四捨五入）
+const nx = v => Math.round((+v)/(1+TAX)*100)/100;
 const fmt = (x,d=0) => (x<0?"−":"") + Math.abs(x).toLocaleString("ja-JP",{minimumFractionDigits:d,maximumFractionDigits:d});
 const fu = x => fmt(x,2);
 
@@ -421,15 +423,15 @@ function calc(r){
   // 送配電事業者託送料金改定分（基本料金相当分のみ。GL/GH/GDとも託送従量単価を使うため電力量相当分は適用外）
   let tr, trf;
   if(isPower){
-    const d = (+A.pb)/(1+TAX) - B.pb;
-    tr = t2(cap*d*(1+TAX)); trf = `${cap}kW × (${fu(+A.pb/(1+TAX))} − 基準${fu(B.pb)}) × 1.1`;
+    const d = nx(A.pb) - B.pb;
+    tr = t2(cap*d*(1+TAX)); trf = `${cap}kW × (${fu(nx(A.pb))} − 基準${fu(B.pb)}) × 1.1`;
   } else if(T.zone===1){
-    const d = (+A.lb)/(1+TAX) - B.lb;
-    tr = t2(kva*d*(1+TAX)); trf = `${fmt(kva,kva%1?1:0)}kVA × (${fu(+A.lb/(1+TAX))} − 基準${fu(B.lb)}) × 1.1`;
+    const d = nx(A.lb) - B.lb;
+    tr = t2(kva*d*(1+TAX)); trf = `${fmt(kva,kva%1?1:0)}kVA × (${fu(nx(A.lb))} − 基準${fu(B.lb)}) × 1.1`;
   } else {
-    const d1 = (+A.li)/(1+TAX) - B.li, ex = Math.max(0,kva-6), d2 = (+A.lx)/(1+TAX) - B.lx;
+    const d1 = nx(A.li) - B.li, ex = Math.max(0,kva-6), d2 = nx(A.lx) - B.lx;
     tr = t2((d1 + ex*d2)*(1+TAX));
-    trf = `6kVAまで (${fu(+A.li/(1+TAX))} − 基準${fu(B.li)})` + (ex>0?` ＋ ${fmt(ex,ex%1?1:0)}kVA × (${fu(+A.lx/(1+TAX))} − 基準${fu(B.lx)})`:"") + " × 1.1";
+    trf = `6kVAまで (${fu(nx(A.li))} − 基準${fu(B.li)})` + (ex>0?` ＋ ${fmt(ex,ex%1?1:0)}kVA × (${fu(nx(A.lx))} − 基準${fu(B.lx)})`:"") + " × 1.1";
   }
   items.push({k:"takuso",label:"託送料金改定分",v:tr,f:trf});
 
@@ -529,17 +531,17 @@ function calcPal(r){
   // 託送料金改定分（固定単価プランは基本料金相当分＋電力量相当分）
   let tb, tk, trf;
   if(r.plan==="PD"){
-    tb=cap*((+A.pb)/(1+TAX)-B.pb); tk=kwh*((+A.pk)/(1+TAX)-B.pk);
-    trf=`${cap}kW × (${fu(+A.pb/(1+TAX))}−基準${fu(B.pb)}) ＋ ${fmt(kwh)}kWh × (${fu(+A.pk/(1+TAX))}−基準${fu(B.pk)})`;
+    tb=cap*(nx(A.pb)-B.pb); tk=kwh*(nx(A.pk)-B.pk);
+    trf=`${cap}kW × (${fu(nx(A.pb))}−基準${fu(B.pb)}) ＋ ${fmt(kwh)}kWh × (${fu(nx(A.pk))}−基準${fu(B.pk)})`;
   } else if(T.zone===1){
-    tb=kva*((+A.lb)/(1+TAX)-B.lb); tk=kwh*((+A.lk)/(1+TAX)-B.lk);
-    trf=`${fmt(kva,kva%1?1:0)}kVA × (${fu(+A.lb/(1+TAX))}−基準${fu(B.lb)}) ＋ ${fmt(kwh)}kWh × (${fu(+A.lk/(1+TAX))}−基準${fu(B.lk)})`;
+    tb=kva*(nx(A.lb)-B.lb); tk=kwh*(nx(A.lk)-B.lk);
+    trf=`${fmt(kva,kva%1?1:0)}kVA × (${fu(nx(A.lb))}−基準${fu(B.lb)}) ＋ ${fmt(kwh)}kWh × (${fu(nx(A.lk))}−基準${fu(B.lk)})`;
   } else {
     const ex=Math.max(0,kva-6);
-    tb=((+A.li)/(1+TAX)-B.li) + ex*((+A.lx)/(1+TAX)-B.lx); tk=kwh*((+A.lk)/(1+TAX)-B.lk);
-    trf=`6kVAまで (${fu(+A.li/(1+TAX))}−基準${fu(B.li)})`+(ex>0?` ＋ ${fmt(ex,ex%1?1:0)}kVA × (${fu(+A.lx/(1+TAX))}−基準${fu(B.lx)})`:"")+` ＋ ${fmt(kwh)}kWh × (${fu(+A.lk/(1+TAX))}−基準${fu(B.lk)})`;
+    tb=(nx(A.li)-B.li) + ex*(nx(A.lx)-B.lx); tk=kwh*(nx(A.lk)-B.lk);
+    trf=`6kVAまで (${fu(nx(A.li))}−基準${fu(B.li)})`+(ex>0?` ＋ ${fmt(ex,ex%1?1:0)}kVA × (${fu(nx(A.lx))}−基準${fu(B.lx)})`:"")+` ＋ ${fmt(kwh)}kWh × (${fu(nx(A.lk))}−基準${fu(B.lk)})`;
   }
-  items.push({k:"takuso",label:"託送料金改定分",v:t2((tb+tk)*(1+TAX)),f:trf+" × 1.1"});
+  items.push({k:"takuso",label:"託送料金改定分",v:t2((tb+tk)*(1+TAX)),f:"{ "+trf+" } × 1.1"});
 
   const subU=+r.sub||0;
   if(subU>0) items.push({k:"subsidy",label:"国の電気料金支援",v:t2(-kwh*subU),f:`${fmt(kwh)}kWh × −${fu(subU)}円`});
