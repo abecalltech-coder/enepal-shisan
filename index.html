@@ -122,6 +122,9 @@ summary{cursor:pointer;font-weight:700;font-size:.9rem}
 .basis li span{font-family:var(--f-num);color:var(--ink)}
 .settings td input{width:92px;padding:4px 6px;font-size:.82rem;text-align:right}
 .flag{font-size:.68rem;background:var(--warn-soft);color:var(--warn);border-radius:3px;padding:1px 5px;margin-left:4px}
+.utwrap{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start}
+.ut{min-width:280px}.ut td.n{text-align:right}
+#cc td:first-child{min-width:200px;padding-right:24px}#cc th:not(:first-child),#cc td:not(:first-child){min-width:100px}
 .notes{font-size:.78rem;color:var(--muted);margin:0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:6px;font-size:.85rem}
 textarea#copyfallback{width:100%;min-height:160px;font-family:var(--f-num);font-size:.78rem;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px}
@@ -142,6 +145,22 @@ textarea#copyfallback{width:100%;min-height:160px;font-family:var(--f-num);font-
     </div>
   </header>
 
+  <section class="card block" id="curSec">
+    <div>
+      <div class="eyebrow">比較用</div>
+      <h2>現在の電気会社と単価表</h2>
+    </div>
+    <div class="fields">
+      <div class="f"><label for="cur_co">電気会社</label><input id="cur_co" list="coList" placeholder="例：東京電力、楽天でんき、ハルエネ" autocomplete="off"><datalist id="coList"></datalist></div>
+      <div class="f"><label for="cur_plan">プラン</label><select id="cur_plan"></select></div>
+      <div class="f"><label for="cur_kind">契約種別</label><select id="cur_kind"><option value="lamp">電灯（従量電灯B・C など）</option><option value="lampA">電灯A（最低料金制）</option><option value="power">動力（低圧電力）</option></select></div>
+      <div class="f"><label>単価表のエリア</label><div id="cur_area" class="small" style="padding-top:8px"></div></div>
+    </div>
+    <div id="curNote" class="small"></div>
+    <div id="curRates" class="fields"></div>
+    <div class="actions" id="curBtns" hidden><button id="curReset" type="button">単価を初期値に戻す</button><button id="curClear" type="button">現契約の比較をやめる</button></div>
+  </section>
+
   <div class="grid">
     <div class="rows">
       <div id="rows" class="rows"></div>
@@ -154,7 +173,7 @@ textarea#copyfallback{width:100%;min-height:160px;font-family:var(--f-num);font-
 
     <aside class="card summary" aria-live="polite">
       <div class="eyebrow">試算サマリ（入力した行の合計）</div>
-      <div class="sum-line"><span>現在の明細合計</span><span class="v" id="sBill">—</span></div>
+      <div class="sum-line"><span id="sBillLab">現在の明細合計</span><span class="v" id="sBill">—</span></div>
       <div class="sum-line"><span>エネパル試算合計</span><span class="v" id="sEst">—</span></div>
       <div id="sBig" class="big neutral"><span class="lab">削減額</span><span class="val" id="sDiff">—</span><span class="sub" id="sRate"></span></div>
       <div class="sum-line"><span>年間換算</span><span class="v" id="sYear">—</span></div>
@@ -174,6 +193,7 @@ textarea#copyfallback{width:100%;min-height:160px;font-family:var(--f-num);font-
     </div>
     <div id="cmp" class="cmp-wrap" style="display:flex;flex-direction:column;gap:8px" hidden></div>
     <div class="scroll"><table id="bd"></table></div>
+    <div id="curCmp" style="display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:14px" hidden></div>
     <details>
       <summary>計算根拠を表示（月ごとの式）</summary>
       <div class="basis" id="basis"></div>
@@ -325,7 +345,7 @@ const saveSettings = ()=>store.set("enepal_settings_v2",{ver:SET_VER,data:S});
 for (const k of AREA_KEYS) if(!S.area[k]) S.area[k]=clone(DEFAULT_SET.area[k]);
 for (const k of Object.keys(DEFAULT_SET)) if(k!=="area" && S[k]===undefined) S[k]=DEFAULT_SET[k];
 
-const BLANK = () => ({plan:"GL",area:"",month:"",cap:"",unit:"kVA",kwh:"",ap:"",mgmt:12,disc:0,welcome:false,sub:"",bill:"",pf:"down"});
+const BLANK = () => ({plan:"GL",area:"",month:"",cap:"",unit:"kVA",kwh:"",ap:"",mgmt:12,disc:0,welcome:false,sub:"",bill:"",pf:"down",cfa:""});
 let rows = store.get("enepal_rows_v2") || [BLANK()];
 let uid = 0; rows.forEach(r=>{ r.id=++uid; if(!MG_OPTS.includes((+r.mgmt).toFixed(1))) r.mgmt=12; if(r.disc==null) r.disc=0; });
 const custEl = document.getElementById("customer");
@@ -572,6 +592,7 @@ function rowHTML(r,i){
       <div class="f"${(r.plan==="GL"||r.plan==="GH")?"":" hidden"}><label for="mgmt_${id}">供給管理費（円/kWh・税別）</label><select id="mgmt_${id}" data-k="mgmt">${MG_OPTS.map(v=>`<option value="${v}"${+v===+r.mgmt?" selected":""}>${v}円</option>`).join("")}</select></div>
       <div class="f"${isPal(r.plan)?"":" hidden"}><label for="disc_${id}">相対割引（電力量料金に対して）</label><select id="disc_${id}" data-k="disc"><option value="0"${!(+r.disc)?" selected":""}>なし</option>${Array.from({length:19},(_,i)=>i+1).map(v=>`<option value="${v}"${+r.disc===v?" selected":""}>${v}%</option>`).join("")}</select></div>
       <div class="f"><label for="sub_${id}">国の支援値引（円/kWh）</label><input id="sub_${id}" type="number" min="0" step="0.1" data-k="sub" value="${r.sub??""}"><span class="hint">明細に補助がある月のみ</span></div>
+      <div class="f"${CUR.co?"":" hidden"}><label for="cfa_${id}">現契約の調整単価（円/kWh）</label><input id="cfa_${id}" type="number" step="0.01" data-k="cfa" value="${r.cfa??""}"><span class="hint">明細の燃料費調整・市場価格調整の単価（マイナス可）</span></div>
       <div class="f"><label for="bill_${id}">取得明細料金（税込・円）</label><input id="bill_${id}" type="number" min="0" step="1" data-k="bill" value="${r.bill}"></div>
       <div class="f"${r.plan==="PD"?"":" hidden"}><label for="pf_${id}">力率</label><select id="pf_${id}" data-k="pf"><option value="down"${(r.pf||"down")==="down"?" selected":""}>85%超（5%割引）</option><option value="none"${r.pf==="none"?" selected":""}>85%ちょうど（なし）</option><option value="up"${r.pf==="up"?" selected":""}>85%未満（5%割増）</option></select></div>
       <div class="f chk"><input id="wel_${id}" type="checkbox" data-k="welcome"${r.welcome?" checked":""}><label for="wel_${id}" style="font-size:.85rem;color:var(--ink)">キャンペーン割を適用</label></div>
@@ -582,6 +603,7 @@ function rowHTML(r,i){
 }
 function renderRows(){
   rowsEl.innerHTML = rows.map(rowHTML).join("");
+  renderCur();
   update();
 }
 rowsEl.addEventListener("input", e=>{
@@ -603,15 +625,17 @@ rowsEl.addEventListener("click", e=>{
   rows = rows.filter(x=>x.id!=id); renderRows();
 });
 function nextMonth(m){ if(!m) return ""; let [y,mo]=m.split("-").map(Number); mo++; if(mo>12){mo=1;y++} return `${y}-${String(mo).padStart(2,"0")}`; }
-document.getElementById("addRow").onclick=()=>{ const l=rows[rows.length-1]; rows.push({id:++uid,plan:l.plan,area:l.area,month:nextMonth(l.month),cap:l.cap,unit:l.unit,kwh:"",ap:"",mgmt:l.mgmt,disc:l.disc||0,welcome:l.welcome,sub:0,bill:""}); renderRows(); };
+document.getElementById("addRow").onclick=()=>{ const l=rows[rows.length-1]; rows.push({id:++uid,plan:l.plan,area:l.area,month:nextMonth(l.month),cap:l.cap,unit:l.unit,kwh:"",ap:"",mgmt:l.mgmt,disc:l.disc||0,welcome:l.welcome,sub:0,bill:"",cfa:"",pf:l.pf||"down"}); renderRows(); };
 document.getElementById("dupRow").onclick=()=>{ const l=rows[rows.length-1]; rows.push({...clone(l),id:++uid,month:nextMonth(l.month)}); renderRows(); };
-document.getElementById("resetRows").onclick=()=>{ rows=[BLANK()]; rows.forEach(r=>r.id=++uid); custEl.value=""; store.set("enepal_customer_v1",""); renderRows(); toast("入力をクリアしました"); };
+document.getElementById("resetRows").onclick=()=>{ rows=[BLANK()]; rows.forEach(r=>r.id=++uid); custEl.value=""; store.set("enepal_customer_v1",""); CUR={co:"",plan:"",kind:"",area:"",r:null}; saveCur(); renderRows(); toast("入力をクリアしました"); };
 custEl.addEventListener("input",()=>{store.set("enepal_customer_v1",custEl.value);update()});
 
 // ---------- outputs ----------
 let lastResults=[];
 function monthLabel(m,i){ if(!m) return `${i+1}行目`; const [y,mo]=m.split("-"); return `${y}年${+mo}月`; }
+let lastCurs=[];
 function update(){
+  syncCurArea();
   rows.forEach(r=>{
     const el=document.getElementById("rec_"+r.id); if(!el) return;
     const rc=recAP(r.area,r.month);
@@ -622,15 +646,18 @@ function update(){
   });
   store.set("enepal_rows_v2", rows.map(({id,...r})=>r));
   const res = rows.map(calc); lastResults=res;
+  const curs = rows.map((r,i)=>res[i].empty?null:calcCur(r)); lastCurs=curs;
+  res.forEach((c,i)=>{ const k=curs[i]; if(k && !c.bill){ c.bill=k.total; c.diff=k.total-c.total; c.billEst=true; } });
   res.forEach((c,i)=>{
-    const r=rows[i];
-    document.getElementById("w_"+r.id).innerHTML = c.warns.map(w=>`<div class="warn">${w}</div>`).join("");
+    const r=rows[i], k=curs[i];
+    document.getElementById("w_"+r.id).innerHTML = c.warns.concat(k?k.warns:[]).map(w=>`<div class="warn">${w}</div>`).join("");
     const d = c.diff;
     if(c.empty){ document.getElementById("o_"+r.id).innerHTML = `<span class="small">エリアと使用電力量を入れると試算します</span>`; return; }
     document.getElementById("o_"+r.id).innerHTML =
-      (c.bill?`<span>現在 <b>${fmt(c.bill)}円</b> → エネパル <b>${fmt(c.total)}円</b></span><span class="pill ${d>=0?"pos":"neg"}">${fmt(Math.abs(d))}円 ${d>=0?"安くなる":"高くなる"}（${(Math.abs(d)/c.bill*100).toFixed(1)}%）</span>`
+      (c.bill?`<span>${c.billEst?"現契約（単価表から計算）":"現在"} <b>${fmt(c.bill)}円</b> → エネパル <b>${fmt(c.total)}円</b></span><span class="pill ${d>=0?"pos":"neg"}">${fmt(Math.abs(d))}円 ${d>=0?"安くなる":"高くなる"}（${(Math.abs(d)/c.bill*100).toFixed(1)}%）</span>`
               :`<span>エネパル試算額 <b>${fmt(c.total)}円</b></span>`) +
-      (c.kwh?`<span><abbr class="help" title="請求額の合計を使用電力量で割った、1kWhあたりの実際の単価（税込・すべての項目込み）">1kWhあたり</abbr> <b>${fu(c.total/c.kwh)}円</b>${c.bill?`（現在 ${fu(c.bill/c.kwh)}円）`:""}</span>`:"");
+      (c.kwh?`<span><abbr class="help" title="請求額の合計を使用電力量で割った、1kWhあたりの実際の単価（税込・すべての項目込み）">1kWhあたり</abbr> <b>${fu(c.total/c.kwh)}円</b>${c.bill?`（現在 ${fu(c.bill/c.kwh)}円）`:""}</span>`:"") +
+      (k && !c.billEst ? `<span class="small">単価表からの計算 ${fmt(k.total)}円（明細との差 ${c.bill-k.total>=0?"":"−"}${fmt(Math.abs(c.bill-k.total))}円）</span>`:"");
   });
   // summary
   const withBill = res.filter(c=>!c.empty&&c.bill>0);
@@ -655,15 +682,17 @@ function update(){
     document.getElementById("sDiff").textContent="—"; document.getElementById("sRate").textContent="明細料金を入れると比較できます";
     document.getElementById("sYear").textContent="—"; document.getElementById("sYearNote").textContent="";
   }
-  renderBreakdown(res);
+  document.getElementById("sBillLab").textContent = withBill.some(c=>c.billEst)?"現在の電気代合計（単価表の計算を含む）":"現在の明細合計";
+  renderBreakdown(res, curs);
 }
 
-function renderBreakdown(res){
-  const idx=res.map((c,i)=>i).filter(i=>!res[i].empty); const R=idx.map(i=>rows[i]); res=idx.map(i=>res[i]);
+function renderBreakdown(res, curs){
+  const idx=res.map((c,i)=>i).filter(i=>!res[i].empty); const R=idx.map(i=>rows[i]); res=idx.map(i=>res[i]); curs=idx.map(i=>(curs||[])[i]);
   const cust=custEl.value.trim();
   document.getElementById("bdTitle").textContent = (cust?cust+"　":"")+"ご請求額の試算内訳（税込）";
-  if(!res.length){ document.getElementById("bd").innerHTML='<tbody><tr><td class="small" style="position:static">エリアと使用電力量を入れると、ここに内訳が表示されます。</td></tr></tbody>'; document.getElementById("basis").innerHTML=""; return; }
+  if(!res.length){ document.getElementById("bd").innerHTML='<tbody><tr><td class="small" style="position:static">エリアと使用電力量を入れると、ここに内訳が表示されます。</td></tr></tbody>'; document.getElementById("basis").innerHTML=""; renderCurCompare([],[],[]); return; }
   renderCompare(res);
+  renderCurCompare(res,R,curs);
   const multi = res.length>1;
   const keys=[]; const seen={};
   res.forEach(c=>c.items.forEach(it=>{ if(!seen[it.k]){seen[it.k]=it;keys.push(it.k)} }));
@@ -679,7 +708,7 @@ function renderBreakdown(res){
   h+=`<tr class="tot"><td>エネパル試算額</td>${T.map(v=>`<td class="n">${fmt(v)}円</td>`).join("")}${multi?`<td class="n">${fmt(tT)}円</td>`:""}</tr>`;
   if(res.some(c=>c.bill)){
     const B=res.map(c=>c.bill), tB=B.reduce((a,b)=>a+b,0);
-    h+=`<tr class="cmp"><td>現在の会社のご請求額</td>${B.map(v=>`<td class="n">${v?fmt(v)+"円":"—"}</td>`).join("")}${multi?`<td class="n">${fmt(tB)}円</td>`:""}</tr>`;
+    h+=`<tr class="cmp"><td>${res.some(c=>c.billEst)?"現在の会社（明細または単価表から計算）":"現在の会社のご請求額"}</td>${B.map(v=>`<td class="n">${v?fmt(v)+"円":"—"}</td>`).join("")}${multi?`<td class="n">${fmt(tB)}円</td>`:""}</tr>`;
     const D=res.map(c=>c.diff), tD=res.filter(c=>c.bill).reduce((a,c)=>a+c.diff,0);
     const cell=d=>d===null?"<td class=\"n\">—</td>":`<td class="n ${d>=0?"pos":"neg"}">${fmt(Math.abs(d))}円 ${d>=0?"安い":"高い"}</td>`;
     h+=`<tr class="diff"><td>差額</td>${D.map(cell).join("")}${multi?cell(tD):""}</tr>`;
@@ -702,7 +731,7 @@ function renderCompare(res){
   const good=d>=0, pct=(Math.abs(d)/bill*100).toFixed(1), yr=Math.round(Math.abs(d)/n*12), per=Math.round(Math.abs(d)/n);
   const scope = n>1?`${n}件の合計`:"1か月分";
   el.innerHTML=`<div class="cmpbox">
-      <div><span class="lab">現在の電気代（${scope}）</span><span class="val">${fmt(bill)}円</span><span class="sub">お手元の明細の金額</span></div>
+      <div><span class="lab">現在の電気代（${scope}）</span><span class="val">${fmt(bill)}円</span><span class="sub">${wb.some(c=>c.billEst)?(CUR.co||"現契約")+"の単価表から計算を含む":"お手元の明細の金額"}</span></div>
       <div><span class="lab">エネパルに切り替えた場合</span><span class="val">${fmt(est)}円</span><span class="sub">同じ使用量で試算</span></div>
       <div class="res ${good?"good":"bad"}"><span class="lab">${good?"安くなる金額":"高くなる金額"}</span><span class="val">${fmt(Math.abs(d))}円</span><span class="sub">${pct}% ${good?"削減":"増加"}</span></div>
     </div>
@@ -719,12 +748,21 @@ function buildText(){
     t+=`\n■ ${monthLabel(r.month,i)}（${PLANS[r.plan]}／${TARIFF[r.area].name}エリア／${fmt(c.kwh)}kWh）\n`;
     c.items.forEach(it=>{ t+=`${it.sub?"　・":"・"}${it.label}：${fu(it.v)}円\n`; });
     t+=`→ 試算額：${fmt(c.total)}円（税込）\n`;
-    if(c.bill) t+=`　現在のご請求：${fmt(c.bill)}円 → ${fmt(Math.abs(c.diff))}円${c.diff>=0?"安くなります":"高くなります"}\n`;
+    if(c.bill) t+=`　${c.billEst?"現契約（"+CUR.co+"・単価表から計算）":"現在のご請求"}：${fmt(c.bill)}円 → ${fmt(Math.abs(c.diff))}円${c.diff>=0?"安くなります":"高くなります"}\n`;
   });
   const wb=res.filter(c=>c.bill);
   if(wb.length){
     const d=wb.reduce((a,c)=>a+c.diff,0);
     t+=`\n【比較】現在 ${fmt(wb.reduce((a,c)=>a+c.bill,0))}円 → エネパル ${fmt(wb.reduce((a,c)=>a+c.total,0))}円（${wb.length}件）\n${d>=0?"安くなる金額":"高くなる金額"}：${fmt(Math.abs(d))}円\n年間換算：約${fmt(Math.abs(Math.round(d/wb.length*12)))}円の${d>=0?"節約":"増加"}見込み\n`;
+  }
+  const ci=idx.filter(i=>lastCurs[i]);
+  if(ci.length){
+    t+=`\n【現契約（${CUR.co}）との項目別比較】\n`;
+    CMP_CATS.forEach(([lab,ek,ck])=>{
+      const e=ci.reduce((a,i)=>a+lastResults[i].items.filter(x=>ek.includes(x.k)).reduce((s,x)=>s+x.v,0),0);
+      const c=ci.reduce((a,i)=>a+lastCurs[i].items.filter(x=>ck.includes(x.k)).reduce((s,x)=>s+x.v,0),0);
+      if(e||c) t+=`・${lab}：現契約 ${fu(c)}円 ／ エネパル ${fu(e)}円\n`;
+    });
   }
   t+=`\n※市場連動分はエリアプライス月平均での概算です。実際の料金は30分ごとの市場価格により変動します。`;
   return t;
@@ -767,6 +805,282 @@ function syncWelcomeGL(){
 }
 
 let tt; function toast(m){const t=document.getElementById("toast");t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2200)}
+
+// ---------- 現在の電気会社（比較用）----------
+// 地域電力の規制料金（2026年11月1日〜・税込）。B=従量電灯B/C（区域①は10A・1kVAあたり、区域②は従量電灯B 1kVAあたり）、A=従量電灯A（最低料金制）、P=低圧電力
+const REG = {
+  hokkaido:{B:{u:572.10,b:[120,280],t:[35.77,42.06,45.78]},P:{b:1681.02,s:29.03,o:29.03}},
+  tohoku:{B:{u:410.71,b:[120,300],t:[31.01,37.76,41.71]},P:{b:1400.90,s:28.44,o:26.99}},
+  kanto:{B:{u:392.06,b:[120,300],t:[29.85,36.45,40.54]},P:{b:1190.83,s:27.19,o:25.62}},
+  chubu:{B:{u:447.92,b:[120,300],t:[21.25,25.73,28.68]},P:{b:1360.32,s:16.90,o:15.35}},
+  hokuriku:{B:{u:302.50,b:[120,300],t:[30.86,34.75,36.46]},P:null},
+  kansai:{A:{amin:763.81,k:15,t:[20.89,26.29,29.27]},B:{u:497.82,b:[120,300],t:[18.49,21.70,24.20]},P:{b:1211.46,s:14.83,o:13.34}},
+  chugoku:{A:{amin:983.37,k:15,t:[33.32,40.00,42.12]},B:{u:476.18,b:[120,300],t:[30.63,36.72,38.59]},P:{b:1228.07,s:27.20,o:25.91}},
+  shikoku:{A:{amin:953.13,k:11,t:[31.42,38.04,41.55]},B:{u:444.88,b:[120,300],t:[28.02,33.55,36.47]},P:{b:1282.52,s:26.51,o:25.07}},
+  kyushu:{B:{u:441.69,b:[120,300],t:[18.33,23.93,26.93]},P:{b:1164.92,s:17.38,o:15.69}}
+};
+const REG_PLAN = [{id:"reg",n:"従量電灯／低圧電力（規制料金・標準メニュー）",note:"2026年11月1日改定後の規制料金（税込）。燃料費調整単価は明細の値を各行に入れてください。"}];
+const TPL_NOTE = "この会社は単価表を公開していないため、地域電力の規制料金を仮置きしています。明細（検針票）の単価に上書きしてください。";
+const TPL_PLAN = (n,extra) => [Object.assign({id:"tpl",n:n||"標準プラン（明細の単価を入力）",note:TPL_NOTE},extra||{})];
+const RAKUTEN_S = {hokkaido:44.67,tohoku:39.24,kanto:38.00,chubu:39.65,hokuriku:36.10,kansai:35.28,chugoku:39.89,shikoku:37.74,kyushu:39.70};
+const CO = [
+  // 地域電力
+  {n:"北海道電力",a:"ほっかいどうでんりょく ほくでん",cat:"地域電力",plans:REG_PLAN},
+  {n:"東北電力",a:"とうほくでんりょく",cat:"地域電力",plans:REG_PLAN},
+  {n:"東京電力エナジーパートナー",a:"東京電力 とうきょうでんりょく TEPCO 東電",cat:"地域電力",plans:REG_PLAN},
+  {n:"中部電力ミライズ",a:"中部電力 ちゅうぶでんりょく 中電",cat:"地域電力",plans:REG_PLAN},
+  {n:"北陸電力",a:"ほくりくでんりょく 北電",cat:"地域電力",plans:REG_PLAN},
+  {n:"関西電力",a:"かんさいでんりょく 関電",cat:"地域電力",plans:REG_PLAN},
+  {n:"中国電力",a:"ちゅうごくでんりょく 中電",cat:"地域電力",plans:REG_PLAN},
+  {n:"四国電力",a:"しこくでんりょく よんでん",cat:"地域電力",plans:REG_PLAN},
+  {n:"九州電力",a:"きゅうしゅうでんりょく 九電",cat:"地域電力",plans:REG_PLAN},
+  // 主要な新電力
+  {n:"東名",a:"とうめい 東名でんき TOMEI",cat:"新電力",plans:TPL_PLAN()},
+  {n:"U-POWER（ユーパワー）",a:"ユーパワー ゆーぱわー UPOWER UPDATER",cat:"新電力",plans:[{id:"up",n:"低圧法人 電灯／動力プラン",
+    note:"U-POWER 低圧法人向け料金定義（2025年11月1日版・税込）。東京・関西・中部以外は地域電力の単価を仮置き。市場調整額＝(エリアプライス平均−基準市場価格)×市場係数で自動計算（概算）。その他調整額1.0円/kWh。",
+    rates:{kanto:{lamp:{u:281.55,b:[120,300],t:[29.80,36.40,40.49]},power:{u:1064.71,s:27.14,o:25.57}},
+           kansai:{lampA:{amin:481.46,k:15,b:[120,300],t:[20.02,25.61,28.59]},lamp:{u:404.73,b:[120,300],t:[17.81,21.02,23.52]},power:{u:1043.97,s:14.35,o:12.86}},
+           chubu:{lamp:{u:290.21,b:[120,300],t:[21.20,25.67,28.62]},power:{u:1110.66,s:16.84,o:15.29}}},
+    mkt:{kanto:[19.03,1.07],kansai:[9.90,1.08],chubu:[11.00,1.07]},other:1.0,adjLabel:"市場調整額"}]},
+  {n:"ハルエネでんき",a:"はるえね ハルエネ",cat:"新電力",plans:TPL_PLAN("シンプルプラン／法人プラン／動力プラン（明細の単価を入力）")},
+  {n:"エコログ電気",a:"えころぐ エコログ",cat:"新電力",plans:TPL_PLAN("スタンダード／ビジネス／動力（明細の単価を入力）")},
+  {n:"Japan電力（ジャパン電力）",a:"ジャパン電力 じゃぱんでんりょく japan",cat:"新電力",plans:[
+    {id:"kurashi",n:"くらしプラン（基本料金0円）",note:"基本料金0円、〜400kWh 30円・400kWh超 29円、容量拠出金相当額477円/契約（税込）。独自燃調（市場価格連動）は明細の単価を入力。新規受付終了プラン。",flat:{all:[30,29,29]},b:[400,400],fixed:477,adjLabel:"独自燃料費調整額"},
+    ...TPL_PLAN("ビジネス／動力プラン（明細の単価を入力）")]},
+  {n:"地域創生電気",a:"ちいきそうせい 地域創生",cat:"新電力",plans:TPL_PLAN()},
+  {n:"ENEOSでんき",a:"エネオス えねおす eneos",cat:"新電力",plans:TPL_PLAN("Vプラン／Sプラン／動力（明細の単価を入力）")},
+  // 携帯キャリア
+  {n:"ドコモでんき",a:"docomo どこも NTTドコモ",cat:"携帯キャリア",plans:[
+    {id:"reg",n:"Basic（地域電力の従量電灯と同等）",note:"基本料金・電力量料金は地域電力の従量電灯と同等（dポイント還元は含まず）。"},
+    {id:"green",n:"Green（Basic＋月500円）",note:"Basicの基本料金（最低料金）に月500円を加算。",fixed:500}]},
+  {n:"auでんき",a:"au エーユー KDDI",cat:"携帯キャリア",plans:[{id:"reg",n:"でんきMプラン等（地域電力と同等）",note:"料金単価は地域電力の従量電灯と同等（Pontaポイント還元は含まず）。"}]},
+  {n:"ソフトバンクでんき",a:"softbank そふとばんく おうちでんき SBパワー",cat:"携帯キャリア",plans:[{id:"reg",n:"おうちでんき（地域電力と同等）",note:"関西エリアは関西電力 従量電灯Aと同額（2026年11月改定後）。他エリアも地域電力の単価を仮置き。"}]},
+  {n:"楽天でんき",a:"rakuten らくてん",cat:"携帯キャリア",plans:[{id:"rs",n:"プランS（基本料金0円・一律単価）",note:"基本料金0円、電力量料金はエリア一律単価（2026年11月1日改定後・税込）。市場価格調整額は明細の単価を入力。",flat:RAKUTEN_S,adjLabel:"市場価格調整額"}]},
+  // ガス・石油系
+  {n:"東京ガス",a:"とうきょうがす tokyogas",cat:"ガス・石油系",plans:[{id:"tg",n:"基本プラン",note:"東京エリア：2026年12月1日改定後（10Aあたり392.05円、29.75／35.74／39.55円・税込）。他エリアは地域電力の単価を仮置き。",
+    rates:{kanto:{lamp:{u:392.05,b:[120,300],t:[29.75,35.74,39.55]}}}},...TPL_PLAN("動力プラン（明細の単価を入力）")]},
+  {n:"大阪ガス",a:"おおさかがす osakagas",cat:"ガス・石油系",plans:[{id:"og",n:"ベースプランA",note:"関西エリア：最低料金707.80円（15kWhまで）、20.89／25.88／28.69円（区切り120・350kWh）。2026年12月検針分〜・税込。",
+    rates:{kansai:{lampA:{amin:707.80,k:15,b:[120,350],t:[20.89,25.88,28.69]}}}},...TPL_PLAN("動力プラン（明細の単価を入力）")]},
+  {n:"東邦ガス",a:"とうほうがす",cat:"ガス・石油系",plans:TPL_PLAN()},
+  {n:"京葉ガス",a:"けいようがす",cat:"ガス・石油系",plans:TPL_PLAN()},
+  {n:"西部ガス",a:"さいぶがす",cat:"ガス・石油系",plans:TPL_PLAN()},
+  {n:"ニチガス（ニチガス電気）",a:"にちがす 日本瓦斯",cat:"ガス・石油系",plans:TPL_PLAN()},
+  {n:"CDエナジーダイレクト",a:"しーでぃー CDエナジー",cat:"ガス・石油系",plans:TPL_PLAN()},
+  {n:"出光興産（idemitsuでんき）",a:"いでみつ idemitsu",cat:"ガス・石油系",plans:TPL_PLAN()},
+  {n:"コスモでんき",a:"こすも cosmo",cat:"ガス・石油系",plans:TPL_PLAN()},
+  {n:"ミツウロコでんき",a:"みつうろこ",cat:"ガス・石油系",plans:TPL_PLAN()},
+  {n:"エネワン（サイサン）",a:"えねわん サイサン",cat:"ガス・石油系",plans:TPL_PLAN()},
+  // その他大手系
+  {n:"Looopでんき",a:"るーぷ looop",cat:"その他大手系",plans:TPL_PLAN("スマートタイムONE等（市場連動・明細の単価を入力）",{adjLabel:"電源料金（市場連動分）"})},
+  {n:"オクトパスエナジー",a:"おくとぱす octopus",cat:"その他大手系",plans:TPL_PLAN()},
+  {n:"イーレックス",a:"いーれっくす erex",cat:"その他大手系",plans:TPL_PLAN()},
+  {n:"シン・エナジー",a:"しんえなじー",cat:"その他大手系",plans:TPL_PLAN()},
+  {n:"HTBエナジー",a:"えいちてぃーびー HIS",cat:"その他大手系",plans:TPL_PLAN()},
+  {n:"エバーグリーン",a:"えばーぐりーん",cat:"その他大手系",plans:TPL_PLAN()},
+  {n:"東急でんき",a:"とうきゅう",cat:"その他大手系",plans:TPL_PLAN()},
+  {n:"九電みらいエナジー",a:"きゅうでんみらい",cat:"その他大手系",plans:TPL_PLAN()},
+  {n:"リミックスでんき",a:"りみっくす",cat:"その他大手系",plans:TPL_PLAN()},
+  {n:"その他（手入力）",a:"その他 手入力 不明",cat:"その他",plans:TPL_PLAN("手入力",{note:"地域電力の規制料金を仮置きしています。明細の単価に上書きしてください。"})}
+];
+const CUR_KINDS = {lamp:"電灯（従量電灯B・C など）",lampA:"電灯A（最低料金制）",power:"動力（低圧電力）"};
+let CUR = store.get("enepal_current_v1") || {co:"",plan:"",kind:"",area:"",r:null};
+const saveCur = ()=>store.set("enepal_current_v1",CUR);
+const findCo = name => CO.find(c=>c.n===name);
+function curArea(){ const r=rows.find(x=>x.area); return r?r.area:""; }
+function defaultKind(area){
+  const r=rows.find(x=>x.area)||rows[0];
+  if(r && isPowerPlan(r.plan)) return "power";
+  if(area && TARIFF[area].zone===2 && r && (+r.cap||0)<6) return "lampA";
+  return "lamp";
+}
+function curTemplate(){
+  const co=findCo(CUR.co); if(!co) return null;
+  const p=co.plans.find(x=>x.id===CUR.plan)||co.plans[0], area=CUR.area, G=REG[area];
+  if(!G) return null;
+  let kind=CUR.kind; if(kind==="lampA" && !G.A && !(p.rates&&p.rates[area]&&p.rates[area].lampA)) kind="lamp";
+  const o={u:"",amin:"",ak:"",b1:120,b2:300,t1:"",t2:"",t3:"",s:"",o:"",fixed:+p.fixed||0,other:+p.other||0,disc:0,mb:"",mc:"",adjLabel:p.adjLabel||"燃料費等調整額"};
+  const own = p.rates&&p.rates[area]&&p.rates[area][kind];
+  if(kind==="power"){ const P=own||(G.P?{u:G.P.b,s:G.P.s,o:G.P.o}:null); if(P){o.u=P.u;o.s=P.s;o.o=P.o;} }
+  else if(kind==="lampA"){ const A=own||{amin:G.A.amin,k:G.A.k,b:[120,300],t:G.A.t}; o.amin=A.amin;o.ak=A.k;o.b1=A.b[0];o.b2=A.b[1];[o.t1,o.t2,o.t3]=A.t; }
+  else { const B=own||G.B; o.u=B.u;o.b1=B.b[0];o.b2=B.b[1];[o.t1,o.t2,o.t3]=B.t; }
+  if(p.flat && kind!=="power"){ const f=p.flat.all||[p.flat[area],p.flat[area],p.flat[area]]; o.u=0;o.amin=0;o.ak=0;[o.t1,o.t2,o.t3]=f; if(p.b){o.b1=p.b[0];o.b2=p.b[1];} }
+  if(p.mkt&&p.mkt[area]){ o.mb=p.mkt[area][0]; o.mc=p.mkt[area][1]; }
+  return {kind,r:o,note:p.note||"",fallback:!own&&!p.flat&&p.id!=="reg"&&!!p.rates};
+}
+function loadCurTemplate(){
+  const t=curTemplate(); if(!t){CUR.r=null;return}
+  CUR.kind=t.kind; CUR.r=t.r; saveCur();
+}
+const CUR_FIELDS = {
+  lamp:[["u","基本料金（円/10A・1kVA）"],["b1","第1段階の上限（kWh）"],["b2","第2段階の上限（kWh）"],["t1","第1段階（円/kWh）"],["t2","第2段階（円/kWh）"],["t3","第3段階（円/kWh）"]],
+  lampA:[["amin","最低料金（円）"],["ak","最低料金に含むkWh"],["b1","第1段階の上限（kWh）"],["b2","第2段階の上限（kWh）"],["t1","第1段階（円/kWh）"],["t2","第2段階（円/kWh）"],["t3","第3段階（円/kWh）"]],
+  power:[["u","基本料金（円/kW）"],["s","夏季 7〜9月（円/kWh）"],["o","その他季（円/kWh）"]]
+};
+const CUR_COMMON = [["disc","電力量料金の割引（%）"],["other","その他の従量加算（円/kWh）"],["fixed","月額の固定費（円/月）"]];
+const coListEl=document.getElementById("coList"), coEl=document.getElementById("cur_co"), cpEl=document.getElementById("cur_plan"), ckEl=document.getElementById("cur_kind");
+coListEl.innerHTML = CO.map(c=>`<option value="${c.n}">${c.cat}｜${c.a}</option>`).join("");
+function renderCur(){
+  const area=curArea(), co=findCo(CUR.co);
+  coEl.value=CUR.co||"";
+  document.getElementById("cur_area").textContent = area?`${TARIFF[area].name}エリア（1行目のエリア）`:"行のエリアを選ぶと単価が入ります";
+  cpEl.innerHTML = co?co.plans.map(p=>`<option value="${p.id}"${p.id===CUR.plan?" selected":""}>${p.n}</option>`).join(""):`<option value="">先に電気会社を選んでください</option>`;
+  cpEl.disabled=!co; ckEl.disabled=!co; ckEl.value=CUR.kind||"lamp";
+  const box=document.getElementById("curRates"), note=document.getElementById("curNote");
+  if(!co){ box.innerHTML=""; note.textContent="電気会社を入れると、その会社の単価表が自動で入り、試算結果に現契約との項目別比較が出ます（候補はクリックまたは入力で表示）。"; document.getElementById("curBtns").hidden=true; return; }
+  document.getElementById("curBtns").hidden=false;
+  if(!CUR.r){ box.innerHTML=""; note.textContent="行のエリアを選ぶと、このエリアの単価が入ります。"; return; }
+  const t=curTemplate();
+  let n=(t&&t.note)||""; if(t&&t.fallback) n+=` ${TARIFF[area].name}エリアは公表単価がないため地域電力の単価を仮置きしています。`;
+  if(CUR.kind==="power" && area==="hokuriku" && !CUR.r.u) n+=" 北陸電力の低圧電力は単価未登録のため、明細の単価を入れてください。";
+  note.innerHTML = `<b>${CUR.co}</b>／${TARIFF[CUR.area]?TARIFF[CUR.area].name+"エリア":""}：${n} 単価はすべて税込で、自由に上書きできます。`;
+  const fld=(k,l)=>`<div class="f"><label for="cr_${k}">${l}</label><input id="cr_${k}" type="number" step="0.01" data-cr="${k}" value="${CUR.r[k]??""}"></div>`;
+  let h=(CUR_FIELDS[CUR.kind]||CUR_FIELDS.lamp).map(([k,l])=>fld(k,l)).join("")+CUR_COMMON.map(([k,l])=>fld(k,l)).join("");
+  if(CUR.r.mb!==""&&CUR.r.mb!=null) h+=fld("mb","基準市場価格（円/kWh）")+fld("mc","市場係数");
+  box.innerHTML=h;
+}
+coEl.addEventListener("change",()=>{
+  const v=coEl.value.trim();
+  let co=findCo(v);
+  if(!co && v){ const m=CO.filter(c=>c.n.includes(v)||c.a.split(" ").some(a=>a&&(a===v||a.includes(v)||v.includes(a)))); if(m.length) co=m[0]; }
+  if(!co){ if(v){ co=findCo("その他（手入力）"); toast("候補にない会社のため「その他（手入力）」で単価表を作りました"); } else { CUR={co:"",plan:"",kind:"",area:"",r:null}; saveCur(); refreshCurRows(); return; } }
+  if(co.n===CUR.co){ coEl.value=CUR.co; return; }
+  CUR.co=co.n; CUR.plan=co.plans[0].id; CUR.area=curArea(); CUR.kind=defaultKind(CUR.area); loadCurTemplate(); refreshCurRows();
+});
+cpEl.addEventListener("change",()=>{CUR.plan=cpEl.value; loadCurTemplate(); renderCur(); update();});
+ckEl.addEventListener("change",()=>{CUR.kind=ckEl.value; loadCurTemplate(); renderCur(); update();});
+document.getElementById("curRates").addEventListener("input",e=>{const k=e.target.dataset.cr; if(!k||!CUR.r) return; CUR.r[k]=e.target.value===""?"":+e.target.value; saveCur(); update();});
+document.getElementById("curReset").onclick=()=>{loadCurTemplate(); renderCur(); update(); toast("単価を初期値に戻しました");};
+document.getElementById("curClear").onclick=()=>{CUR={co:"",plan:"",kind:"",area:"",r:null}; saveCur(); refreshCurRows();};
+function refreshCurRows(){ rowsEl.querySelectorAll('[data-k="cfa"]').forEach(el=>{el.closest(".f").hidden=!CUR.co}); renderCur(); update(); }
+function syncCurArea(){
+  if(!CUR.co) return;
+  const a=curArea();
+  if(a && a!==CUR.area){ CUR.area=a; if(!CUR.kind) CUR.kind=defaultKind(a); loadCurTemplate(); renderCur(); }
+}
+
+function calcCur(r){
+  if(!CUR.co || !CUR.r || !r.area) return null;
+  const R=CUR.r, n=v=>+v||0, items=[], warns=[];
+  const kwh=Math.max(0,Math.round(+r.kwh||0)), cap=+r.cap||0, month=r.month?+r.month.split("-")[1]:0;
+  let basic=0,bf="",bl="基本料金",tiers=[];
+  if(CUR.kind==="power"){
+    basic=cap*n(R.u); bf=`${cap}kW × ${fu(n(R.u))}円`;
+    if(r.plan==="PD"&&r.pf==="down"){basic*=0.95;bf+=" × 0.95（力率85%超 5%割引）";}
+    else if(r.plan==="PD"&&r.pf==="up"){basic*=1.05;bf+=" × 1.05（力率85%未満 5%割増）";}
+    const su=month>=7&&month<=9, rate=n(su?R.s:R.o);
+    tiers=[{q:kwh,r:rate,v:t2(kwh*rate),label:su?"夏季":"その他季"}];
+  } else if(CUR.kind==="lampA"){
+    const ak=n(R.ak); bl="最低料金"; basic=n(R.amin); bf=`最初の${ak}kWhまで ${fu(basic)}円`;
+    tiers=tierCalc(Math.max(0,kwh-ak),[Math.max(0,n(R.b1)-ak),Math.max(0,n(R.b2)-ak)],[n(R.t1),n(R.t2),n(R.t3)]);
+  } else {
+    const q=r.unit==="A"?cap/10:cap; basic=q*n(R.u);
+    bf=r.unit==="A"?`${cap}A（10Aあたり ${fu(n(R.u))}円）`:`${cap}${r.unit} × ${fu(n(R.u))}円`;
+    tiers=tierCalc(kwh,[n(R.b1),n(R.b2)],[n(R.t1),n(R.t2),n(R.t3)]);
+  }
+  if(tiers.length===3) tiers.forEach((x,i)=>x.label=`第${i+1}段階`);
+  if(kwh===0 && CUR.kind!=="lampA" && basic){ basic/=2; bf+="（使用量0のため半額）"; }
+  basic=t2(basic);
+  items.push({k:"c_basic",label:bl,v:basic,f:bf});
+  const eTot=t2(tiers.reduce((a,x)=>a+x.v,0));
+  items.push({k:"c_energy",label:"電力量料金",v:eTot,f:"",group:true});
+  tiers.forEach((x,i)=>{ if(x.q>0||i===0) items.push({k:"c_p"+i,label:x.label,v:x.v,f:`${fmt(x.q)}kWh × ${fu(x.r)}円`,sub:true}); });
+  if(n(R.disc)) items.push({k:"c_disc",label:"電力量料金の割引",v:t2(-eTot*n(R.disc)/100),f:`${fu(eTot)}円 × ${n(R.disc)}%`});
+  let au=null, af="";
+  if(r.cfa!==""&&r.cfa!=null){ au=+r.cfa; af=`${fmt(kwh)}kWh × ${fu(au)}円（明細の単価）`; }
+  else if(R.mb!==""&&R.mb!=null&&r.ap!==""&&r.ap!=null){ au=t2((+r.ap-n(R.mb))*(n(R.mc)||1)); af=`${fmt(kwh)}kWh × (エリアプライス${fu(+r.ap)} − 基準${fu(n(R.mb))}) × ${n(R.mc)}＝${fu(au)}円（概算）`; }
+  if(au===null){ af="単価未入力のため0円"; warns.push(`現契約の${R.adjLabel||"燃料費等調整額"}の単価が未入力です（明細の単価を「現契約の調整単価」に入れると正確になります）。`); au=0; }
+  items.push({k:"c_adj",label:R.adjLabel||"燃料費等調整額",v:t2(kwh*au),f:af});
+  if(n(R.other)) items.push({k:"c_other",label:"その他の従量加算",v:t2(kwh*n(R.other)),f:`${fmt(kwh)}kWh × ${fu(n(R.other))}円`});
+  if(n(R.fixed)) items.push({k:"c_fixed",label:"月額の固定費",v:t2(n(R.fixed)),f:`月額 ${fu(n(R.fixed))}円`});
+  const sr=saieneRate(r.month);
+  items.push({k:"saiene",label:"再エネ賦課金",v:yen(kwh*sr),f:`${fmt(kwh)}kWh × ${sr.toFixed(2)}円（1円未満切捨）`});
+  const subU=+r.sub||0;
+  if(subU>0) items.push({k:"subsidy",label:"国の電気料金支援",v:t2(-kwh*subU),f:`${fmt(kwh)}kWh × −${fu(subU)}円`});
+  const total=yen(items.filter(i=>!i.sub).reduce((a,i)=>a+i.v,0));
+  if(r.area!==CUR.area) warns.push(`この行のエリアが現契約の単価表（${TARIFF[CUR.area].name}）と違います。`);
+  return {items,total,kwh,warns};
+}
+// エネパル側の単価一覧（比較表用）
+function enepalUnits(r,c){
+  const T=TARIFF[r.area], A=S.area[r.area], L=[], loss=(+A.loss||0)/100, cap=+r.cap||0;
+  if(!isPal(r.plan)){
+    if(r.plan==="GL") L.push(["基本料金", T.zone===1?`${fu(T.glKva)}円/1kVA（10A）`:`6kVAまで ${fu(T.glBase)}円＋超過 ${fu(T.glEx)}円/kVA`]);
+    else L.push(["基本料金", `${fu(r.plan==="GH"?T.gh:T.gd)}円/${r.plan==="GD"?"kW":"kVA"}`]);
+    const tk=r.plan==="GD"?+A.pk:+A.lk, ap=+r.ap||0, mk=ap/(1-loss)*1.1, fe=(+S.fee||0)/(1-loss)*1.1, mg=r.plan==="GD"?0:(+r.mgmt||0)*1.1;
+    L.push(["託送従量分", `${fu(tk)}円/kWh`],["市場連動分", ap?`${fu(mk)}円/kWh（エリアプライス${fu(ap)}円）`:"エリアプライス未入力"],["市場取引手数料", `${fu(fe)}円/kWh`]);
+    if(r.plan!=="GD") L.push(["供給管理費", `${fu(mg)}円/kWh`]);
+    L.push(["電力量料金の合計単価", `${fu(tk+mk+fe+mg)}円/kWh`]);
+  } else if(r.plan==="PD"){
+    const P=PAL_POWER[r.area]; L.push(["基本料金",`${fu(P.b)}円/kW`],["プレミアム値引",`−${fu(+S.palPremDisc||0)}円/kW`],["夏季 7〜9月",`${fu(P.s)}円/kWh`],["その他季",`${fu(P.o)}円/kWh`]);
+  } else {
+    const P=PAL[r.plan][r.area];
+    if(T.zone===1){ const b2=r.area==="hokkaido"?280:300; L.push(["基本料金",`${fu(P.u)}円/10A・1kVA`],["〜120kWh",`${fu(P.t[0])}円/kWh`],[`120〜${b2}kWh`,`${fu(P.t[1])}円/kWh`],[`${b2}kWh超`,`${fu(P.t[2])}円/kWh`]); }
+    else if(cap<6){ const k=r.area==="shikoku"?11:15; L.push(["最低料金",`${fu(P.amin)}円（${k}kWhまで）`],[`${k}〜120kWh`,`${fu(P.at[0])}円/kWh`],["120〜300kWh",`${fu(P.at[1])}円/kWh`],["300kWh超",`${fu(P.at[2])}円/kWh`]); }
+    else L.push(["基本料金",`${fu(P.bk)}円/kVA`],["〜120kWh",`${fu(P.bt[0])}円/kWh`],["120〜300kWh",`${fu(P.bt[1])}円/kWh`],["300kWh超",`${fu(P.bt[2])}円/kWh`]);
+  }
+  if(isPal(r.plan) && +r.disc) L.push(["相対割引",`電力量料金の${+r.disc}%`]);
+  const ch=c.items.find(i=>i.k==="chotatsu"); if(ch&&c.kwh) L.push(["電源調達調整費",`${fu(ch.v/c.kwh)}円/kWh`]);
+  L.push(["安定供給維持費",`${fu((+S.stable||0)*1.1)}円/kW`]);
+  const tr=c.items.find(i=>i.k==="takuso"); if(tr) L.push(["託送料金改定分",`${fu(tr.v)}円/月`]);
+  L.push(["再エネ賦課金",`${saieneRate(r.month).toFixed(2)}円/kWh`]);
+  return L;
+}
+function curUnits(r){
+  const R=CUR.r, n=v=>+v||0, L=[];
+  if(CUR.kind==="power") L.push(["基本料金",`${fu(n(R.u))}円/kW`],["夏季 7〜9月",`${fu(n(R.s))}円/kWh`],["その他季",`${fu(n(R.o))}円/kWh`]);
+  else {
+    if(CUR.kind==="lampA") L.push(["最低料金",`${fu(n(R.amin))}円（${n(R.ak)}kWhまで）`]); else L.push(["基本料金",`${fu(n(R.u))}円/10A・1kVA`]);
+    const lo=CUR.kind==="lampA"?n(R.ak):0;
+    if(n(R.b1)===n(R.b2)&&n(R.t2)===n(R.t3)) L.push([`${lo}〜${n(R.b1)}kWh`,`${fu(n(R.t1))}円/kWh`],[`${n(R.b1)}kWh超`,`${fu(n(R.t2))}円/kWh`]);
+    else L.push([`${lo}〜${n(R.b1)}kWh`,`${fu(n(R.t1))}円/kWh`],[`${n(R.b1)}〜${n(R.b2)}kWh`,`${fu(n(R.t2))}円/kWh`],[`${n(R.b2)}kWh超`,`${fu(n(R.t3))}円/kWh`]);
+  }
+  if(n(R.disc)) L.push(["電力量料金の割引",`${n(R.disc)}%`]);
+  const au = r.cfa!==""&&r.cfa!=null ? `${fu(+r.cfa)}円/kWh` : (R.mb!==""&&R.mb!=null ? `(エリアプライス−${fu(n(R.mb))})×${n(R.mc)}` : "未入力");
+  L.push([R.adjLabel||"燃料費等調整額", au]);
+  if(n(R.other)) L.push(["その他の従量加算",`${fu(n(R.other))}円/kWh`]);
+  if(n(R.fixed)) L.push(["月額の固定費",`${fu(n(R.fixed))}円/月`]);
+  L.push(["再エネ賦課金",`${saieneRate(r.month).toFixed(2)}円/kWh`]);
+  return L;
+}
+const CMP_CATS = [
+  ["基本料金（割引後）", ["basic","pdisc","welcome"], ["c_basic"]],
+  ["電力量料金（割引後）", ["energy","sotai"], ["c_energy","c_disc"]],
+  ["燃料費・市場・電源調達の調整額", ["chotatsu"], ["c_adj"]],
+  ["再エネ賦課金", ["saiene"], ["saiene"]],
+  ["安定供給維持費・託送改定分・固定費など", ["stable","stadj","takuso"], ["c_other","c_fixed"]],
+  ["国の電気料金支援", ["subsidy"], ["subsidy"]]
+];
+function renderCurCompare(res,R,curs){
+  const el=document.getElementById("curCmp");
+  const idx=res.map((c,i)=>i).filter(i=>curs[i]);
+  if(!idx.length){ el.hidden=true; el.innerHTML=""; return; }
+  const sumK=(c,ks)=>c.items.filter(i=>ks.includes(i.k)).reduce((a,i)=>a+i.v,0);
+  const kw=idx.reduce((a,i)=>a+res[i].kwh,0);
+  const per=v=>kw?fu(v/kw):"—";
+  let h=`<div><div class="eyebrow">現契約との比較</div><h3 style="font-size:1rem">${CUR.co} と エネパルの項目別比較（${idx.length>1?idx.length+"件の合計":"1か月分"}・税込）</h3></div>`;
+  h+=`<div class="scroll"><table id="cc"><thead><tr><th>項目</th><th>現契約<br>${CUR.co}</th><th>エネパル<br>${[...new Set(idx.map(i=>PLANS[R[i].plan]))].join("・")}</th><th>差額<br>（＋はエネパルが安い）</th><th>1kWhあたり<br>現契約</th><th>1kWhあたり<br>エネパル</th></tr></thead><tbody>`;
+  let tc=0,te=0;
+  CMP_CATS.forEach(([lab,ek,ck])=>{
+    const e=idx.reduce((a,i)=>a+sumK(res[i],ek),0), c=idx.reduce((a,i)=>a+sumK(curs[i],ck),0);
+    if(!e && !c) return;
+    const d=c-e;
+    h+=`<tr><td>${lab}</td><td class="n">${fu(c)}</td><td class="n">${fu(e)}</td><td class="n ${d>0.004?"pos":d<-0.004?"neg":""}">${d>0.004?"+":d<-0.004?"−":""}${fu(Math.abs(d))}</td><td class="n">${per(c)}</td><td class="n">${per(e)}</td></tr>`;
+  });
+  idx.forEach(i=>{tc+=curs[i].total; te+=res[i].total;});
+  const d=tc-te;
+  h+=`<tr class="tot"><td>合計</td><td class="n">${fmt(tc)}円</td><td class="n">${fmt(te)}円</td><td class="n ${d>=0?"pos":"neg"}">${fmt(Math.abs(d))}円 ${d>=0?"安い":"高い"}</td><td class="n">${per(tc)}</td><td class="n">${per(te)}</td></tr></tbody></table></div>`;
+  const chk=idx.filter(i=>res[i].bill && !res[i].billEst);
+  if(chk.length){
+    const bt=chk.reduce((a,i)=>a+res[i].bill,0), ct=chk.reduce((a,i)=>a+curs[i].total,0), g=bt-ct;
+    h+=`<div class="small">単価表からの計算 ${fmt(ct)}円 ／ 明細の金額 ${fmt(bt)}円（差 ${g>=0?"":"−"}${fmt(Math.abs(g))}円）。差が大きいときは、単価や調整単価を明細に合わせて直してください。${idx.some(i=>/^GL|GH$/.test(R[i].plan))?"":""}</div>`;
+  }
+  h+=`<div class="small">マーケットリンク（市場連動）は市場価格の分が「電力量料金」に含まれます。現契約の燃料費等調整額と合わせて見比べてください。</div>`;
+  // 単価表
+  const r0=R[idx[0]], c0=res[idx[0]], cu=curUnits(r0), eu=enepalUnits(r0,c0);
+  const tb=(title,L)=>`<div class="scroll"><table class="ut"><thead><tr><th colspan="2">${title}</th></tr></thead><tbody>${L.map(([a,b])=>`<tr><td>${a}</td><td class="n">${b}</td></tr>`).join("")}</tbody></table></div>`;
+  h+=`<div><h3 style="font-size:.95rem;margin-top:6px">単価表（${monthLabel(r0.month,idx[0])}・${TARIFF[r0.area].name}エリア・税込）</h3></div><div class="utwrap">${tb(`現契約：${CUR.co}（${CUR_KINDS[CUR.kind]}）`,cu)}${tb(`エネパル：${PLANS[r0.plan]}`,eu)}</div>`;
+  el.innerHTML=h; el.hidden=false;
+}
 
 window.__calc = calc;
 renderSettings(); renderRows();
