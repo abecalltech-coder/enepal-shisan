@@ -89,8 +89,8 @@ section.block{padding:18px;display:flex;flex-direction:column;gap:12px}
 .scroll{overflow-x:auto;min-width:0}
 table{border-collapse:collapse;width:auto;min-width:min(100%,460px);font-size:.88rem}
 th,td{padding:7px 14px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
-#bd th:not(:first-child),#bd td:not(:first-child){min-width:110px}
-#bd td:first-child{min-width:170px;padding-right:28px}
+#bd th,#bd td{padding:7px 10px}#bd th:not(:first-child),#bd td:not(:first-child){min-width:70px}
+#bd td:first-child{min-width:150px;padding-right:16px;white-space:normal}
 .settings{width:100%}
 th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--surface)}
 thead th{font-size:.75rem;color:var(--muted);font-weight:500;border-bottom:2px solid var(--ink)}
@@ -133,6 +133,17 @@ summary{cursor:pointer;font-weight:700;font-size:.9rem}
 .grp-h{font-size:.85rem;font-weight:700;color:var(--accent);display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
 .grp-h small{font-weight:500;color:var(--muted);font-size:.74rem}
 .grps{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+#bd th,#bd td{vertical-align:top}
+#bd .gs{border-left:2px solid var(--line)}
+#bd .gh{text-align:center;color:var(--ink);font-weight:700;font-size:.82rem;border-bottom:1px solid var(--line)}
+#bd thead tr+tr th{position:static;background:transparent}
+#bd thead tr:first-child th{border-bottom:1px solid var(--line)}
+#bd thead tr:first-child th[rowspan]{border-bottom:2px solid var(--ink)}
+#bd .ln{line-height:1.75;white-space:nowrap}
+#bd .ln.b{font-weight:700;border-top:1px dashed var(--line)}
+#bd .ln .lab{color:var(--muted);font-size:.74rem;margin-right:8px;font-family:var(--f-ui)}
+#bd tr.hd td{background:var(--sunk);font-weight:700;font-size:.8rem;position:static}
+#bd td:first-child{font-weight:700}
 .row .grps{grid-template-columns:minmax(0,1fr)}
 .row .fields{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
 .req{font-size:.66rem;background:var(--bad-soft);color:var(--bad);border-radius:3px;padding:0 5px;margin-left:4px;font-weight:700}
@@ -179,6 +190,7 @@ textarea#copyfallback{width:100%;min-height:160px;font-family:var(--f-num);font-
     <div class="actions" id="curBtns" hidden><button id="curReset" type="button">単価を初期値に戻す</button><button id="curClear" type="button">現在の会社の比較をやめる</button></div>
   </section>
 
+  <section class="card block" id="step2">
   <div class="step"><span class="no">STEP 2</span><h2>明細を入力</h2><span class="sub">明細1か月分＝1枚。<span class="req">必須</span>だけ入れれば試算できます</span></div>
   <div class="grid">
     <div class="rows">
@@ -204,6 +216,7 @@ textarea#copyfallback{width:100%;min-height:160px;font-family:var(--f-num);font-
       <div class="small">LINEやメールに貼り付けてお客様に送れます。画面の内訳表をそのままスクリーンショットしてもお使いいただけます。</div>
     </aside>
   </div>
+  </section>
 
   <section class="card block">
     <div>
@@ -571,7 +584,7 @@ function calcPal(r){
   }
   const eTot=t2(tiers.reduce((a,x)=>a+x.v,0));
   items.push({k:"energy",label:"電力量料金",v:eTot,f:tierNote||"",group:true});
-  tiers.forEach((x,i)=>items.push({k:"p"+(i+1),label:x.label,v:x.v,f:`${fmt(x.q)}kWh × ${fu(x.r)}円`,sub:true}));
+  tiers.forEach((x,i)=>items.push({k:"p"+(i+1),label:x.label,v:x.v,f:`${fmt(x.q)}kWh × ${fu(x.r)}円`,sub:true,qn:x.q,un:x.r}));
   const pct=+r.disc||0;
   if(pct>0) items.push({k:"sotai",label:"相対割引",v:t2(-eTot*pct/100),f:`電力量料金 ${fu(eTot)}円 × ${pct}%`});
 
@@ -745,31 +758,7 @@ function renderBreakdown(res, curs){
   document.getElementById("bdTitle").textContent = (cust?cust+"　":"")+"ご請求額の試算内訳（税込）";
   if(!res.length){ document.getElementById("bd").innerHTML='<tbody><tr><td class="small" style="position:static">エリアと使用電力量を入れると、ここに内訳が表示されます。</td></tr></tbody>'; document.getElementById("basis").innerHTML=""; document.getElementById("bdView").hidden=true; document.getElementById("curCmp").hidden=true; return; }
   renderCompare(res);
-  if(curs.some(Boolean)){ renderCurTable(res,R,curs); renderBasis(res,R,curs); return; }
-  document.getElementById("bdView").hidden=true; document.getElementById("curCmp").hidden=true;
-  const multi = res.length>1;
-  const keys=[]; const seen={};
-  res.forEach(c=>c.items.forEach(it=>{ if(!seen[it.k]){seen[it.k]=it;keys.push(it.k)} }));
-  const order=["basic","pdisc","welcome","energy","e1","e2","e3","e4","p1","p2","p3","sotai","chotatsu","saiene","stable","stadj","takuso","subsidy"];
-  keys.sort((a,b)=>order.indexOf(a)-order.indexOf(b));
-  let h=`<thead><tr><th>項目</th>${res.map((c,i)=>`<th>${monthLabel(R[i].month,i)}<br>${fmt(c.kwh)}kWh</th>`).join("")}${multi?"<th>合計</th>":""}</tr></thead><tbody>`;
-  keys.forEach(k=>{
-    const it=seen[k]; const vals=res.map(c=>{const x=c.items.find(i=>i.k===k);return x?x.v:0});
-    const tot=vals.reduce((a,b)=>a+b,0);
-    h+=`<tr class="${it.sub?"sub":""}"><td>${it.label}</td>${vals.map(v=>`<td class="n">${fu(v)}</td>`).join("")}${multi?`<td class="n">${fu(t2(tot))}</td>`:""}</tr>`;
-  });
-  const T=res.map(c=>c.total), tT=T.reduce((a,b)=>a+b,0);
-  h+=`<tr class="tot"><td>エネパル試算額</td>${T.map(v=>`<td class="n">${fmt(v)}円</td>`).join("")}${multi?`<td class="n">${fmt(tT)}円</td>`:""}</tr>`;
-  if(res.some(c=>c.bill)){
-    const B=res.map(c=>c.bill), tB=B.reduce((a,b)=>a+b,0);
-    h+=`<tr class="cmp"><td>${res.some(c=>c.billEst)?"現在の会社（明細または単価表から計算）":"現在の会社のご請求額"}</td>${B.map(v=>`<td class="n">${v?fmt(v)+"円":"—"}</td>`).join("")}${multi?`<td class="n">${fmt(tB)}円</td>`:""}</tr>`;
-    const D=res.map(c=>c.diff), tD=res.filter(c=>c.bill).reduce((a,c)=>a+c.diff,0);
-    const cell=d=>d===null?"<td class=\"n\">—</td>":`<td class="n ${d>=0?"pos":"neg"}">${fmt(Math.abs(d))}円 ${d>=0?"安い":"高い"}</td>`;
-    h+=`<tr class="diff"><td>差額</td>${D.map(cell).join("")}${multi?cell(tD):""}</tr>`;
-  }
-  h+="</tbody>";
-  document.getElementById("bd").innerHTML=h;
-  renderBasis(res,R,[]);
+  renderCompTable(res,R,curs); renderBasis(res,R,curs);
 }
 function renderBasis(res,R,curs){
   document.getElementById("basis").innerHTML = res.map((c,i)=>{
@@ -1055,7 +1044,7 @@ function calcCur(r){
   items.push({k:"c_basic",label:bl,v:basic,f:bf});
   const eTot=t2(tiers.reduce((a,x)=>a+x.v,0));
   items.push({k:"c_energy",label:"電力量料金",v:eTot,f:"",group:true});
-  tiers.forEach((x,i)=>{ if(x.q>0||i===0) items.push({k:"c_p"+i,label:x.label,v:x.v,f:`${fmt(x.q)}kWh × ${fu(x.r)}円`,sub:true}); });
+  tiers.forEach((x,i)=>{ if(x.q>0||i===0) items.push({k:"c_p"+i,label:x.label,v:x.v,f:`${fmt(x.q)}kWh × ${fu(x.r)}円`,sub:true,qn:x.q,un:x.r}); });
   if(n(R.disc)) items.push({k:"c_disc",label:"電力量料金の割引",v:t2(-eTot*n(R.disc)/100),f:`${fu(eTot)}円 × ${n(R.disc)}%`});
   const ad=curAdjUnit(r); let au=0, af;
   if(ad){ au=ad.v; af=`${fmt(kwh)}kWh × ${fu(au)}円（${ad.f}）`; }
@@ -1131,51 +1120,113 @@ function curUnits(r){
   return U;
 }
 // 内訳表の行（現契約とエネパルで項目をそろえる）
-const CMP_CATS = [
-  ["基本料金", ["basic"], ["c_basic"]],
-  ["割引（キャンペーン・相対割引など）", ["pdisc","welcome","sotai"], ["c_disc"]],
-  ["電力量料金", ["energy"], ["c_energy"]],
-  ["燃料費等調整額／電源調達調整費", ["chotatsu"], ["c_adj"]],
-  ["再エネ賦課金", ["saiene"], ["saiene"]],
-  ["安定供給維持費", ["stable","stadj"], []],
-  ["託送料金改定分", ["takuso"], []],
-  ["その他（容量拠出金相当・月額費など）", [], ["c_other","c_fixed"]],
-  ["国の電気料金支援", ["subsidy"], ["subsidy"]]
+const CMP_ROWS = [
+  {t:"① 基本料金", ek:["basic"], ck:["c_basic"]},
+  {t:"② 電力量料金", ek:["e1","e2","e3","e4","p1","p2","p3"], ck:["c_p0","c_p1","c_p2"], tot:{e:"energy",c:"c_energy"}},
+  {t:"③ 再エネ賦課金", ek:["saiene"], ck:["saiene"]},
+  {h:"④ 会社ごとに異なる項目"},
+  {t:"割引", ek:["pdisc","welcome","sotai"], ck:["c_disc"]},
+  {t:"燃料費等調整額／電源調達調整費", ek:["chotatsu"], ck:["c_adj"]},
+  {t:"安定供給維持費", ek:["stable","stadj"], ck:[]},
+  {t:"託送料金改定分", ek:["takuso"], ck:[]},
+  {t:"その他（容量拠出金相当・月額費など）", ek:[], ck:["c_other","c_fixed"]},
+  {t:"国の電気料金支援", ek:["subsidy"], ck:["subsidy"]}
 ];
+const CMP_CATS = CMP_ROWS.filter(x=>x.t).map(x=>[x.t.replace(/^[①-④]\s*/,""), x.tot?[x.tot.e]:x.ek, x.tot?[x.tot.c]:x.ck]);
+const PER_KWH = ["e1","e2","e3","e4","saiene","subsidy","chotatsu","c_adj","c_other"];
+// 項目ごとの「単価」と「使用量・容量」
+function unitQty(it, r, c, side){
+  const kwh=c.kwh, cap=+r.cap||0, un=r.unit||"kVA", capN=un==="A"?cap/10:cap, capU=un==="A"?"10A":un, capT=`${fmt(cap,cap%1?1:0)}${un}`;
+  const zone2A = side==="e" && !isPowerPlan(r.plan) && TARIFF[r.area].zone===2 && cap<6 && r.plan!=="GH";
+  const k=it.k, v=it.v;
+  if(it.qn!=null) return {u:`${fu(it.un)}円/kWh`, q:`${fmt(it.qn)}kWh`, qn:it.qn, pk:true};
+  if(PER_KWH.includes(k)) return {u:kwh?`${fu(v/kwh)}円/kWh`:"—", q:`${fmt(kwh)}kWh`, qn:kwh, pk:true};
+  if(k==="c_basic" && CUR.kind==="lampA") return {u:`${fu(v)}円`, q:`最低料金（${+CUR.r.ak||0}kWhまで）`};
+  if(k==="basic" && zone2A) return {u:`${fu(v)}円`, q:isPal(r.plan)?"最低料金":"1需要場所"};
+  if((k==="stable"||k==="stadj") && zone2A) return {u:`${fu(v)}円/件`, q:"1件"};
+  if(k==="stable"||k==="stadj") return {u:capN?`${fu(v/capN)}円/kW`:"—", q:`${fmt(capN,capN%1?1:0)}kW${un==="kW"?"":"換算"}`};
+  if(k==="sotai") return {u:`${+r.disc}%`, q:`電力量料金 ${fu(c.items.find(i=>i.k==="energy").v)}円`};
+  if(k==="c_disc") return {u:`${+CUR.r.disc}%`, q:`電力量料金 ${fu(c.items.find(i=>i.k==="c_energy").v)}円`};
+  if(k==="c_fixed") return {u:`${fu(v)}円/月`, q:"1か月"};
+  if(k==="takuso" && isPal(r.plan)) return {u:"容量＋使用量に応じて", q:`${capT}・${fmt(kwh)}kWh`};
+  if(k==="welcome" && v===-(c.items.find(i=>i.k==="basic")||{}).v) return {u:"基本料金を無料", q:capT};
+  const isKW = isPowerPlan(r.plan) || (side==="c" && CUR.kind==="power");
+  const per = (k==="stable"||k==="stadj") ? capN : capN;
+  const unitLab = (k==="stable"||k==="stadj") ? "kW" : (isKW?"kW":capU);
+  return {u:per?`${fu(v/per)}円/${unitLab}`:"—", q:capT};
+}
+function cellLines(keys, idx, R, src, res, side){
+  const out=[];
+  keys.forEach(k=>{
+    const hits=idx.filter(i=>src[i]&&src[i].items.some(x=>x.k===k));
+    if(!hits.length) return;
+    const parts=hits.map(i=>{const it=src[i].items.find(x=>x.k===k); return {it, uq:unitQty(it,R[i],src[i],side)};});
+    const v=parts.reduce((a,p)=>a+p.it.v,0);
+    let u, q;
+    if(parts.length===1){ u=parts[0].uq.u; q=parts[0].uq.q; }
+    else if(parts.every(p=>p.uq.pk)){ const qn=parts.reduce((a,p)=>a+p.uq.qn,0); q=`${fmt(qn)}kWh`; u=parts.every(p=>p.uq.u===parts[0].uq.u)?parts[0].uq.u:(qn?`平均 ${fu(v/qn)}円/kWh`:"—"); }
+    else { u=parts.every(p=>p.uq.u===parts[0].uq.u)?parts[0].uq.u:"月で異なる"; q=parts.every(p=>p.uq.q===parts[0].uq.q)?`${parts[0].uq.q} ×${parts.length}か月`:"月で異なる"; }
+    out.push({lab:parts[0].it.label, u, q, v});
+  });
+  return out;
+}
 let bdView = "all";
-function renderCurTable(res,R,curs){
-  const all=res.map((c,i)=>i).filter(i=>curs[i]);
+function renderCompTable(res,R,curs){
+  const hasCur = curs.some(Boolean);
+  const all=res.map((c,i)=>i);
   const viewEl=document.getElementById("bdView");
   if(bdView!=="all" && !all.includes(+bdView)) bdView="all";
   viewEl.innerHTML = all.length>1 ? `<label class="small" for="bdViewSel">表示</label> <select id="bdViewSel" style="width:auto">${[`<option value="all">${all.length}件の合計</option>`].concat(all.map(i=>`<option value="${i}"${String(i)===String(bdView)?" selected":""}>${monthLabel(R[i].month,i)}（${fmt(res[i].kwh)}kWh）</option>`)).join("")}</select>` : "";
   viewEl.hidden = all.length<2;
   const idx = bdView==="all"?all:[+bdView];
-  const sumK=(c,ks)=>c.items.filter(i=>ks.includes(i.k)).reduce((a,i)=>a+i.v,0);
-  const has=(c,ks)=>c.items.some(i=>ks.includes(i.k));
   const kw=idx.reduce((a,i)=>a+res[i].kwh,0);
   const plans=[...new Set(idx.map(i=>PLANS[R[i].plan]))].join("・");
-  const dcell=d=>`<td class="n ${d>0.004?"pos":d<-0.004?"neg":""}">${Math.abs(d)<0.005?"0.00":(d>0?"":"−")+fu(Math.abs(d))}</td>`;
-  let h=`<thead><tr><th>項目</th><th>現在<br>${CUR.co}</th><th>エネパル<br>${plans}</th><th>差額<br>（安くなる額）</th></tr></thead><tbody>`;
-  CMP_CATS.forEach(([lab,ek,ck])=>{
-    const he=idx.some(i=>has(res[i],ek)), hc=idx.some(i=>has(curs[i],ck));
-    if(!he && !hc) return;
-    const e=idx.reduce((a,i)=>a+sumK(res[i],ek),0), c=idx.reduce((a,i)=>a+sumK(curs[i],ck),0);
-    h+=`<tr><td>${lab}</td><td class="n">${hc?fu(c):"—"}</td><td class="n">${he?fu(e):"—"}</td>${dcell(c-e)}</tr>`;
+  const sumK=(src,ks)=>idx.reduce((a,i)=>a+(src[i]?src[i].items.filter(x=>ks.includes(x.k)).reduce((s,x)=>s+x.v,0):0),0);
+  const dcell=d=>`<td class="n gs ${d>0.004?"pos":d<-0.004?"neg":""}">${Math.abs(d)<0.005?"0.00":(d>0?"":"−")+fu(Math.abs(d))}</td>`;
+  const ln=(L,f,showLab)=>L.map(l=>`<div class="ln${l.b?" b":""}">${f==="u"&&showLab&&l.lab&&!(showLab.includes&&showLab.includes(l.lab))?`<span class="lab">${l.lab}</span>`:""}${f==="v"?fu(l.v):l[f]}</div>`).join("");
+  const trip=(L,showLab)=>L.length?`<td class="n gs">${ln(L,"u",showLab)}</td><td class="n">${ln(L,"q")}</td><td class="n">${ln(L,"v")}</td>`:`<td class="n gs small">—</td><td></td><td></td>`;
+  const ncol = hasCur?8:4;
+  let h=`<thead><tr><th rowspan="2">項目</th>${hasCur?`<th colspan="3" class="gs gh">現在：${CUR.co}</th>`:""}<th colspan="3" class="gs gh">エネパル：${plans}</th>${hasCur?`<th rowspan="2" class="gs">差額<br>（安くなる額）</th>`:""}</tr>
+    <tr>${hasCur?`<th class="gs">単価</th><th>使用量・容量</th><th>金額（円）</th>`:""}<th class="gs">単価</th><th>使用量・容量</th><th>金額（円）</th></tr></thead><tbody>`;
+  CMP_ROWS.forEach(row=>{
+    if(row.h){ h+=`<tr class="hd"><td colspan="${ncol}">${row.h}</td></tr>`; return; }
+    let E=cellLines(row.ek,idx,R,res,res,"e"), C=hasCur?cellLines(row.ck,idx,R,curs,res,"c"):[];
+    if(!E.length && !C.length) return;
+    let e=sumK(res,row.ek), c=sumK(curs,row.ck);
+    const multiLab = !!row.tot || row.t.indexOf("④")<0 && false;
+    if(row.tot){
+      e=sumK(res,[row.tot.e]); c=sumK(curs,[row.tot.c]);
+      if(E.length) E.push({lab:"計",u:kw?`平均 ${fu(e/kw)}円/kWh`:"—",q:`${fmt(kw)}kWh`,v:e,b:true});
+      if(C.length) C.push({lab:"計",u:kw?`平均 ${fu(c/kw)}円/kWh`:"—",q:`${fmt(kw)}kWh`,v:c,b:true});
+    }
+    const showLab = /^[①③]/.test(row.t) ? false : row.t;
+    h+=`<tr><td>${row.t}</td>${hasCur?trip(C,showLab):""}${trip(E,showLab)}${hasCur?dcell(c-e):""}</tr>`;
   });
-  const tc=idx.reduce((a,i)=>a+curs[i].total,0), te=idx.reduce((a,i)=>a+res[i].total,0), d=tc-te;
-  h+=`<tr class="tot"><td>合計（税込）</td><td class="n">${fmt(tc)}円</td><td class="n">${fmt(te)}円</td><td class="n ${d>=0?"pos":"neg"}">${d>=0?"":"−"}${fmt(Math.abs(d))}円</td></tr>`;
-  h+=`<tr class="cmp"><td>1kWhあたり</td><td class="n">${kw?fu(tc/kw)+"円":"—"}</td><td class="n">${kw?fu(te/kw)+"円":"—"}</td>${kw?dcell((tc-te)/kw):"<td></td>"}</tr>`;
-  const real=idx.filter(i=>res[i].bill && !res[i].billEst);
-  if(real.length){ const bt=real.reduce((a,i)=>a+res[i].bill,0), ct=real.reduce((a,i)=>a+curs[i].total,0);
-    h+=`<tr class="cmp"><td class="small">（参考）明細の請求額</td><td class="n small">${fmt(bt)}円</td><td class="small" colspan="2">単価表の計算との差 ${bt-ct>=0?"":"−"}${fmt(Math.abs(bt-ct))}円</td></tr>`; }
+  const te=idx.reduce((a,i)=>a+res[i].total,0);
+  if(hasCur){
+    const tc=idx.reduce((a,i)=>a+curs[i].total,0), d=tc-te;
+    h+=`<tr class="tot"><td>合計（税込）</td><td class="gs"></td><td></td><td class="n">${fmt(tc)}円</td><td class="gs"></td><td></td><td class="n">${fmt(te)}円</td><td class="n gs ${d>=0?"pos":"neg"}">${d>=0?"":"−"}${fmt(Math.abs(d))}円</td></tr>`;
+    h+=`<tr class="cmp"><td>1kWhあたり</td><td class="gs"></td><td></td><td class="n">${kw?fu(tc/kw)+"円":"—"}</td><td class="gs"></td><td></td><td class="n">${kw?fu(te/kw)+"円":"—"}</td>${kw?dcell((tc-te)/kw):"<td></td>"}</tr>`;
+    const real=idx.filter(i=>res[i].bill && !res[i].billEst);
+    if(real.length){ const bt=real.reduce((a,i)=>a+res[i].bill,0), ct=real.reduce((a,i)=>a+curs[i].total,0);
+      h+=`<tr class="cmp"><td class="small">（参考）明細の請求額</td><td class="gs"></td><td></td><td class="n small">${fmt(bt)}円</td><td class="small gs" colspan="4">単価表の計算との差 ${bt-ct>=0?"":"−"}${fmt(Math.abs(bt-ct))}円</td></tr>`; }
+  } else {
+    h+=`<tr class="tot"><td>エネパル試算額</td><td class="gs"></td><td></td><td class="n">${fmt(te)}円</td></tr>`;
+    h+=`<tr class="cmp"><td>1kWhあたり</td><td class="gs"></td><td></td><td class="n">${kw?fu(te/kw)+"円":"—"}</td></tr>`;
+    const wb=idx.filter(i=>res[i].bill);
+    if(wb.length){ const bt=wb.reduce((a,i)=>a+res[i].bill,0), et=wb.reduce((a,i)=>a+res[i].total,0), d=bt-et;
+      h+=`<tr class="cmp"><td>現在の明細の請求額${wb.length<idx.length?`（${wb.length}件分）`:""}</td><td class="gs"></td><td></td><td class="n">${fmt(bt)}円</td></tr>`;
+      h+=`<tr class="diff"><td>差額</td><td class="gs"></td><td></td><td class="n ${d>=0?"pos":"neg"}">${fmt(Math.abs(d))}円 ${d>=0?"安くなる":"高くなる"}</td></tr>`; }
+  }
   h+="</tbody>";
   document.getElementById("bd").innerHTML=h;
-  // 単価表（同じ項目で横並び）
-  const i0=idx[0], cu=curUnits(R[i0]), eu=enepalUnits(R[i0],res[i0]);
+  // プランの単価表（折りたたみ）
   const el=document.getElementById("curCmp");
-  el.innerHTML=`<h3 style="font-size:.95rem">単価表（${monthLabel(R[i0].month,i0)}・${TARIFF[R[i0].area].name}エリア・税込）</h3>
-    <div class="scroll"><table id="cu"><thead><tr><th>項目</th><th>現在<br>${CUR.co}</th><th>エネパル<br>${PLANS[R[i0].plan]}</th></tr></thead><tbody>${
-      UNIT_ROWS.map(([k,l])=>`<tr><td>${l}</td><td class="u">${cu[k]}</td><td class="u">${eu[k]}</td></tr>`).join("")}</tbody></table></div>`;
+  if(!hasCur){ el.hidden=true; el.innerHTML=""; return; }
+  const i0=idx[0], cu=curUnits(R[i0]), eu=enepalUnits(R[i0],res[i0]);
+  el.innerHTML=`<details><summary>プランの料金単価表を表示（${monthLabel(R[i0].month,i0)}・${TARIFF[R[i0].area].name}エリア・税込）</summary>
+    <div class="scroll" style="margin-top:8px"><table id="cu"><thead><tr><th>項目</th><th>現在<br>${CUR.co}</th><th>エネパル<br>${PLANS[R[i0].plan]}</th></tr></thead><tbody>${
+      UNIT_ROWS.map(([k,l])=>`<tr><td>${l}</td><td class="u">${cu[k]}</td><td class="u">${eu[k]}</td></tr>`).join("")}</tbody></table></div></details>`;
   el.hidden=false;
 }
 document.addEventListener("change",e=>{ if(e.target.id==="bdViewSel"){ bdView=e.target.value; update(); } });
