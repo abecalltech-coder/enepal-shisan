@@ -52,19 +52,19 @@ header.top p{margin:4px 0 0;color:var(--muted);font-size:.85rem}
 .row-head .tag{font-weight:700}
 .fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px 12px}
 .f{display:flex;flex-direction:column;gap:3px;min-width:0}
-.f label{font-size:.75rem;color:var(--muted);font-weight:500}
-.f .hint{font-size:.7rem;color:var(--muted)}
+.f label{font-size:.8rem;color:var(--ink);font-weight:700}
+.f .hint{font-size:.72rem;color:var(--muted);line-height:1.5}
 .rec{font-size:.74rem;color:var(--accent);display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin-top:2px}
 .rec b{font-family:var(--f-num)}
 .rec button{font-size:.72rem;padding:1px 8px;border-color:var(--accent);color:var(--accent);background:transparent}
 .rec .old{color:var(--muted)}
-input,select{font:inherit;font-size:.92rem;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 8px;width:100%;min-width:0}
+input,select{font:inherit;font-size:1rem;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 8px;width:100%;min-width:0}
 input[type=number]{font-family:var(--f-num);font-variant-numeric:tabular-nums}
 input:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .pair{display:flex;gap:6px}.pair>:first-child{flex:1}.pair>select{width:80px;flex:none}
 .chk{flex-direction:row;align-items:center;gap:8px;padding-top:18px}
 .chk input{width:18px;height:18px}
-.row-out{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.85rem;border-top:1px dashed var(--line);padding-top:10px}
+.row-out{display:flex;flex-direction:column;gap:4px;font-size:.85rem;border-top:1px dashed var(--line);padding-top:10px}
 .row-out b{font-family:var(--f-num);font-weight:600}
 .warns{display:flex;flex-direction:column;gap:4px}
 .warn{font-size:.78rem;background:var(--warn-soft);color:var(--warn);border-radius:4px;padding:4px 8px}
@@ -125,6 +125,24 @@ summary{cursor:pointer;font-weight:700;font-size:.9rem}
 .utwrap{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start}
 .ut{min-width:280px}.ut td.n{text-align:right}
 #cu td:first-child{min-width:190px;padding-right:24px}#cu td.u{text-align:left;white-space:normal;min-width:200px;font-family:var(--f-num);font-size:.84rem}#cu th:not(:first-child){text-align:left}
+.step{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.step .no{background:var(--accent);color:var(--accent-ink);border-radius:999px;padding:2px 12px;font-weight:700;font-size:.78rem;white-space:nowrap}
+.step .sub{font-size:.8rem;color:var(--muted)}
+.grp{border:1px solid var(--line);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;background:var(--bg)}
+.grp input,.grp select{background:var(--surface)}
+.grp-h{font-size:.85rem;font-weight:700;color:var(--accent);display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.grp-h small{font-weight:500;color:var(--muted);font-size:.74rem}
+.grps{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.row .grps{grid-template-columns:minmax(0,1fr)}
+.row .fields{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
+.req{font-size:.66rem;background:var(--bad-soft);color:var(--bad);border-radius:3px;padding:0 5px;margin-left:4px;font-weight:700}
+.auto{display:block;font-size:.75rem;background:var(--accent-soft);color:var(--ink);border-radius:6px;padding:5px 8px;line-height:1.55;margin-top:3px}
+.auto b{color:var(--accent);font-family:var(--f-num)}
+.unitin{display:flex;align-items:center;gap:6px}.unitin span{font-size:.78rem;color:var(--muted);white-space:nowrap}
+.tiers{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr);gap:6px 10px;align-items:center;font-size:.8rem}
+.tiers .th{font-size:.72rem;color:var(--muted)}
+.out-main{font-size:.95rem}
+ul.lines{margin:0;padding-left:18px;font-size:.8rem;color:var(--muted);display:flex;flex-direction:column;gap:2px}
 .notes{font-size:.78rem;color:var(--muted);margin:0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:6px;font-size:.85rem}
 textarea#copyfallback{width:100%;min-height:160px;font-family:var(--f-num);font-size:.78rem;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px}
@@ -146,27 +164,28 @@ textarea#copyfallback{width:100%;min-height:160px;font-family:var(--f-num);font-
   </header>
 
   <section class="card block" id="curSec">
-    <div>
-      <div class="eyebrow">比較用</div>
-      <h2>現在の電気会社と単価表</h2>
+    <div class="step"><span class="no">STEP 1</span><h2>現在の電気会社</h2><span class="sub">比較しないときは空欄のままでOK</span></div>
+    <div class="grp">
+      <div class="grp-h">会社とプラン</div>
+      <div class="fields">
+        <div class="f"><label for="cur_co">電気会社</label><input id="cur_co" list="coList" placeholder="例：東京電力、楽天でんき" autocomplete="off"><datalist id="coList"></datalist><span class="hint">文字を入れると候補が出ます</span></div>
+        <div class="f"><label for="cur_plan">プラン</label><select id="cur_plan"></select></div>
+        <div class="f"><label for="cur_kind">契約種別</label><select id="cur_kind"><option value="lamp">電灯（従量電灯B・C など）</option><option value="lampA">電灯A（最低料金制）</option><option value="power">動力（低圧電力）</option></select></div>
+        <div class="f"><label>エリア</label><div id="cur_area" class="small" style="padding-top:8px"></div></div>
+      </div>
     </div>
-    <div class="fields">
-      <div class="f"><label for="cur_co">電気会社</label><input id="cur_co" list="coList" placeholder="例：東京電力、楽天でんき、ハルエネ" autocomplete="off"><datalist id="coList"></datalist></div>
-      <div class="f"><label for="cur_plan">プラン</label><select id="cur_plan"></select></div>
-      <div class="f"><label for="cur_kind">契約種別</label><select id="cur_kind"><option value="lamp">電灯（従量電灯B・C など）</option><option value="lampA">電灯A（最低料金制）</option><option value="power">動力（低圧電力）</option></select></div>
-      <div class="f"><label>単価表のエリア</label><div id="cur_area" class="small" style="padding-top:8px"></div></div>
-    </div>
-    <div id="curNote" class="small"></div>
-    <div id="curRates" class="fields"></div>
-    <div class="actions" id="curBtns" hidden><button id="curReset" type="button">単価を初期値に戻す</button><button id="curClear" type="button">現契約の比較をやめる</button></div>
+    <div id="curNote"></div>
+    <div id="curRates" class="grps"></div>
+    <div class="actions" id="curBtns" hidden><button id="curReset" type="button">単価を初期値に戻す</button><button id="curClear" type="button">現在の会社の比較をやめる</button></div>
   </section>
 
+  <div class="step"><span class="no">STEP 2</span><h2>明細を入力</h2><span class="sub">明細1か月分＝1枚。<span class="req">必須</span>だけ入れれば試算できます</span></div>
   <div class="grid">
     <div class="rows">
       <div id="rows" class="rows"></div>
       <div class="actions">
-        <button class="primary" id="addRow" type="button">行を追加</button>
-        <button id="dupRow" type="button">最後の行を複製して追加</button>
+        <button class="primary" id="addRow" type="button">＋ 明細を追加</button>
+        <button id="dupRow" type="button">最後の明細をコピーして追加</button>
         <button id="resetRows" type="button">入力をクリア</button>
       </div>
     </div>
@@ -188,7 +207,7 @@ textarea#copyfallback{width:100%;min-height:160px;font-family:var(--f-num);font-
 
   <section class="card block">
     <div>
-      <div class="eyebrow">お客様向け</div>
+      <div class="step"><span class="no">STEP 3</span><span class="sub">試算結果（お客様向け）</span></div>
       <h2 id="bdTitle">ご請求額の試算内訳（税込）</h2>
     </div>
     <div id="cmp" class="cmp-wrap" style="display:flex;flex-direction:column;gap:8px" hidden></div>
@@ -604,23 +623,27 @@ function unitOpts(r){
   return list.map(u=>`<option${u===r.unit?" selected":""}>${u}</option>`).join("");
 }
 function rowHTML(r,i){
-  const id=r.id;
+  const id=r.id, grp=(t,sm,body)=>`<div class="grp"><div class="grp-h">${t}${sm?`<small>${sm}</small>`:""}</div><div class="fields">${body}</div></div>`;
+  const ui=(inp,u)=>`<div class="unitin">${inp}<span>${u}</span></div>`;
   return `<div class="card row" data-id="${id}">
-    <div class="row-head"><span class="tag">${i+1}行目</span><button class="ghost" type="button" data-act="del" aria-label="この行を削除">削除</button></div>
-    <div class="fields">
-      <div class="f"><label for="plan_${id}">契約プラン</label><select id="plan_${id}" data-k="plan">${planOpts(r.plan)}</select></div>
-      <div class="f"><label for="area_${id}">エリア</label><select id="area_${id}" data-k="area">${areaOpts(r.area)}</select></div>
-      <div class="f"><label for="month_${id}">取得明細月</label><input id="month_${id}" type="month" data-k="month" value="${r.month||""}"></div>
-      <div class="f"><label for="cap_${id}">契約容量</label><div class="pair"><input id="cap_${id}" type="number" min="0" step="1" data-k="cap" value="${r.cap}"><select id="unit_${id}" data-k="unit" aria-label="単位">${unitOpts(r)}</select></div></div>
-      <div class="f"><label for="kwh_${id}">使用電力量（kWh）</label><input id="kwh_${id}" type="number" min="0" step="1" data-k="kwh" value="${r.kwh}"></div>
-      <div class="f"><label for="ap_${id}">エリアプライス月平均（円/kWh）</label><input id="ap_${id}" type="number" min="0" step="0.01" data-k="ap" value="${r.ap}"><span class="hint">${isPal(r.plan)?"電源調達調整費の計算に使用（税抜）":"JEPXの税抜価格"}</span><span class="rec" id="rec_${id}"></span></div>
-      <div class="f"${(r.plan==="GL"||r.plan==="GH")?"":" hidden"}><label for="mgmt_${id}">供給管理費（円/kWh・税別）</label><select id="mgmt_${id}" data-k="mgmt">${MG_OPTS.map(v=>`<option value="${v}"${+v===+r.mgmt?" selected":""}>${v}円</option>`).join("")}</select></div>
-      <div class="f"${isPal(r.plan)?"":" hidden"}><label for="disc_${id}">相対割引（電力量料金に対して）</label><select id="disc_${id}" data-k="disc"><option value="0"${!(+r.disc)?" selected":""}>なし</option>${Array.from({length:19},(_,i)=>i+1).map(v=>`<option value="${v}"${+r.disc===v?" selected":""}>${v}%</option>`).join("")}</select></div>
-      <div class="f"><label for="sub_${id}">国の支援値引（円/kWh）</label><input id="sub_${id}" type="number" min="0" step="0.1" data-k="sub" value="${r.sub??""}" placeholder="空欄＝明細月から自動"><span class="hint" id="subh_${id}"></span></div>
-      <div class="f"${CUR.co?"":" hidden"}><label for="cfa_${id}">現契約の調整単価（円/kWh）</label><input id="cfa_${id}" type="number" step="0.01" data-k="cfa" value="${r.cfa??""}"><span class="hint" id="cfah_${id}">明細の燃料費調整・市場価格調整の単価（マイナス可）</span></div>
-      <div class="f"><label for="bill_${id}">取得明細料金（税込・円）</label><input id="bill_${id}" type="number" min="0" step="1" data-k="bill" value="${r.bill}"></div>
+    <div class="row-head"><span class="tag">明細 ${i+1}</span><button class="ghost" type="button" data-act="del" aria-label="この明細を削除">削除</button></div>
+    <div class="grps">
+    ${grp("① 契約内容","",`
+      <div class="f"><label for="plan_${id}">エネパルのプラン<span class="req">必須</span></label><select id="plan_${id}" data-k="plan">${planOpts(r.plan)}</select></div>
+      <div class="f"><label for="area_${id}">エリア<span class="req">必須</span></label><select id="area_${id}" data-k="area">${areaOpts(r.area)}</select></div>
+      <div class="f"><label for="month_${id}">明細の月</label><input id="month_${id}" type="month" data-k="month" value="${r.month||""}"><span class="hint">入れると燃調・支援・<br>エリアプライスが自動で入ります</span></div>
+      <div class="f"><label for="cap_${id}">契約容量</label><div class="pair"><input id="cap_${id}" type="number" inputmode="decimal" min="0" step="1" data-k="cap" value="${r.cap}"><select id="unit_${id}" data-k="unit" aria-label="単位">${unitOpts(r)}</select></div></div>`)}
+    ${grp("② 明細の数字","検針票を見て入力",`
+      <div class="f"><label for="kwh_${id}">使用電力量<span class="req">必須</span></label>${ui(`<input id="kwh_${id}" type="number" inputmode="numeric" min="0" step="1" data-k="kwh" value="${r.kwh}">`,"kWh")}</div>
+      <div class="f"><label for="bill_${id}">請求金額（税込）</label>${ui(`<input id="bill_${id}" type="number" inputmode="numeric" min="0" step="1" data-k="bill" value="${r.bill}">`,"円")}<span class="hint">空欄なら現在の会社の<br>単価表から計算します</span></div>
+      <div class="f"${CUR.co?"":" hidden"}><label for="cfa_${id}">現在の会社の調整単価</label>${ui(`<input id="cfa_${id}" type="number" inputmode="decimal" step="0.01" data-k="cfa" value="${r.cfa??""}" placeholder="空欄＝自動">`,"円/kWh")}<span class="hint" id="cfah_${id}"></span></div>`)}
+    ${grp("③ 単価・割引","自動で入る項目は空欄のままでOK",`
+      <div class="f"><label for="ap_${id}">エリアプライス月平均</label>${ui(`<input id="ap_${id}" type="number" inputmode="decimal" min="0" step="0.01" data-k="ap" value="${r.ap}">`,"円/kWh")}<span class="hint">${isPal(r.plan)?"電源調達調整費の計算に使用（税抜）":"JEPXの市場価格（税抜）"}</span><span class="rec" id="rec_${id}"></span></div>
+      <div class="f"${(r.plan==="GL"||r.plan==="GH")?"":" hidden"}><label for="mgmt_${id}">供給管理費（税別）</label><select id="mgmt_${id}" data-k="mgmt">${MG_OPTS.map(v=>`<option value="${v}"${+v===+r.mgmt?" selected":""}>${v}円/kWh</option>`).join("")}</select></div>
+      <div class="f"${isPal(r.plan)?"":" hidden"}><label for="disc_${id}">相対割引</label><select id="disc_${id}" data-k="disc"><option value="0"${!(+r.disc)?" selected":""}>なし</option>${Array.from({length:19},(_,i)=>i+1).map(v=>`<option value="${v}"${+r.disc===v?" selected":""}>${v}%</option>`).join("")}</select><span class="hint">電力量料金に対する割引</span></div>
       <div class="f"${r.plan==="PD"?"":" hidden"}><label for="pf_${id}">力率</label><select id="pf_${id}" data-k="pf"><option value="down"${(r.pf||"down")==="down"?" selected":""}>85%超（5%割引）</option><option value="none"${r.pf==="none"?" selected":""}>85%ちょうど（なし）</option><option value="up"${r.pf==="up"?" selected":""}>85%未満（5%割増）</option></select></div>
-      <div class="f chk"><input id="wel_${id}" type="checkbox" data-k="welcome"${r.welcome?" checked":""}><label for="wel_${id}" style="font-size:.85rem;color:var(--ink)">キャンペーン割を適用</label></div>
+      <div class="f"><label for="sub_${id}">国の支援値引</label>${ui(`<input id="sub_${id}" type="number" inputmode="decimal" min="0" step="0.1" data-k="sub" value="${r.sub??""}" placeholder="空欄＝自動">`,"円/kWh")}<span class="hint" id="subh_${id}"></span></div>
+      <div class="f chk"><input id="wel_${id}" type="checkbox" data-k="welcome"${r.welcome?" checked":""}><label for="wel_${id}" style="font-size:.88rem">キャンペーン割を適用</label></div>`)}
     </div>
     <div class="warns" id="w_${id}"></div>
     <div class="row-out" id="o_${id}"></div>
@@ -667,12 +690,12 @@ function update(){
     if(!rc){ el.innerHTML=""; return; }
     const [y,mo]=rc.m.split("-");
     const same = r.ap!=="" && +r.ap===rc.v;
-    el.innerHTML = `おすすめ <b>${rc.v.toFixed(2)}円</b><span class="${rc.latest?"old":""}">（${TARIFF[r.area].name} ${y}年${+mo}月${rc.latest?"・明細月のデータがないため直近月":""}）</span>`+(same?"":`<button type="button" data-act="useap" data-v="${rc.v}">入れる</button>`);
+    el.innerHTML = `<span class="auto">おすすめ <b>${rc.v.toFixed(2)}円</b> ${same?"（入力済み）":`<button type="button" data-act="useap" data-v="${rc.v}">入れる</button>`}<br>${TARIFF[r.area].name} ${y}年${+mo}月の平均${rc.latest?"<br>※明細月のデータがないため直近月":""}</span>`;
   });
   rows.forEach(r=>{
-    const sh=document.getElementById("subh_"+r.id); if(sh) sh.textContent = (r.sub===""||r.sub==null) ? (SUBSIDY[r.month]?`この月は支援 ${SUBSIDY[r.month].toFixed(2)}円/kWh を自動で適用`:"この月の支援はなし（自動）") : "入力した値で計算";
+    const sh=document.getElementById("subh_"+r.id); if(sh) sh.innerHTML = (r.sub===""||r.sub==null) ? (SUBSIDY[r.month]?`<span class="auto">自動 <b>${SUBSIDY[r.month].toFixed(2)}円/kWh</b><br>この月は国の支援あり</span>`:`<span class="auto">自動 <b>0円</b><br>${r.month?"この月は国の支援なし":"明細の月を入れると自動判定"}</span>`) : "入力した値で計算します";
     const ch=document.getElementById("cfah_"+r.id);
-    if(ch && CUR.r){ const ad=curAdjUnit(r); ch.textContent = (r.cfa!==""&&r.cfa!=null) ? "明細の単価で計算" : ad ? `空欄のため ${fu(ad.v)}円 を自動で使用：${ad.f}` : "この会社は独自の調整単価のため、明細の単価を入れてください"; }
+    if(ch){ const ad=CUR.r?curAdjUnit(r):null; ch.innerHTML = (r.cfa!==""&&r.cfa!=null) ? "明細の単価で計算します<br>（燃料費調整・市場価格調整）" : ad ? `<span class="auto">自動 <b>${fu(ad.v)}円/kWh</b><br>${ad.f.replace("（自動）","")}</span>` : "この会社は独自の調整単価です<br>明細の単価を入れてください"; }
   });
   store.set("enepal_rows_v2", rows.map(({id,...r})=>r));
   const res = rows.map(calc); lastResults=res;
@@ -682,11 +705,11 @@ function update(){
     const r=rows[i], k=curs[i];
     document.getElementById("w_"+r.id).innerHTML = c.warns.concat(k?k.warns:[]).map(w=>`<div class="warn">${w}</div>`).join("");
     const d = c.diff;
-    if(c.empty){ document.getElementById("o_"+r.id).innerHTML = `<span class="small">エリアと使用電力量を入れると試算します</span>`; return; }
+    if(c.empty){ document.getElementById("o_"+r.id).innerHTML = `<span class="small">エリアと使用電力量を入れると、ここに試算額が出ます</span>`; return; }
     document.getElementById("o_"+r.id).innerHTML =
-      (c.bill?`<span>${c.billEst?"現契約（単価表から計算）":"現在"} <b>${fmt(c.bill)}円</b> → エネパル <b>${fmt(c.total)}円</b></span><span class="pill ${d>=0?"pos":"neg"}">${fmt(Math.abs(d))}円 ${d>=0?"安くなる":"高くなる"}（${(Math.abs(d)/c.bill*100).toFixed(1)}%）</span>`
-              :`<span>エネパル試算額 <b>${fmt(c.total)}円</b></span>`) +
-      (c.kwh?`<span><abbr class="help" title="請求額の合計を使用電力量で割った、1kWhあたりの実際の単価（税込・すべての項目込み）">1kWhあたり</abbr> <b>${fu(c.total/c.kwh)}円</b>${c.bill?`（現在 ${fu(c.bill/c.kwh)}円）`:""}</span>`:"") +
+      (c.bill?`<div class="out-main">現在 <b>${fmt(c.bill)}円</b>${c.billEst?'<span class="small">（単価表から計算）</span>':""}<br>エネパル <b>${fmt(c.total)}円</b></div><div><span class="pill ${d>=0?"pos":"neg"}">${fmt(Math.abs(d))}円 ${d>=0?"安くなる":"高くなる"}（${(Math.abs(d)/c.bill*100).toFixed(1)}%）</span></div>`
+              :`<div class="out-main">エネパル試算額 <b>${fmt(c.total)}円</b></div>`) +
+      (c.kwh?`<span class="small"><abbr class="help" title="請求額の合計を使用電力量で割った、1kWhあたりの実際の単価（税込・すべての項目込み）">1kWhあたり</abbr>　エネパル ${fu(c.total/c.kwh)}円${c.bill?`／現在 ${fu(c.bill/c.kwh)}円`:""}</span>`:"") +
       (k && !c.billEst ? `<span class="small">単価表からの計算 ${fmt(k.total)}円（明細との差 ${c.bill-k.total>=0?"":"−"}${fmt(Math.abs(c.bill-k.total))}円）</span>`:"");
   });
   // summary
@@ -955,21 +978,37 @@ coListEl.innerHTML = CO.map(c=>`<option value="${c.n}">${c.cat}｜${c.a}</option
 function renderCur(){
   const area=curArea(), co=findCo(CUR.co);
   coEl.value=CUR.co||"";
-  document.getElementById("cur_area").textContent = area?`${TARIFF[area].name}エリア（1行目のエリア）`:"行のエリアを選ぶと単価が入ります";
+  document.getElementById("cur_area").textContent = area?`${TARIFF[area].name}エリア（明細1のエリア）`:"STEP 2でエリアを選ぶと入ります";
   cpEl.innerHTML = co?co.plans.map(p=>`<option value="${p.id}"${p.id===CUR.plan?" selected":""}>${p.n}</option>`).join(""):`<option value="">先に電気会社を選んでください</option>`;
   cpEl.disabled=!co; ckEl.disabled=!co; ckEl.value=CUR.kind||"lamp";
   const box=document.getElementById("curRates"), note=document.getElementById("curNote");
-  if(!co){ box.innerHTML=""; note.textContent="電気会社を入れると、その会社の単価表が自動で入り、試算結果に現契約との項目別比較が出ます（候補はクリックまたは入力で表示）。"; document.getElementById("curBtns").hidden=true; return; }
+  if(!co){ box.innerHTML=""; note.innerHTML='<ul class="lines"><li>電気会社を入れると、その会社の単価が自動で入ります</li><li>試算結果に「現在の会社｜エネパル｜差額」の比較表が出ます</li></ul>'; document.getElementById("curBtns").hidden=true; return; }
   document.getElementById("curBtns").hidden=false;
-  if(!CUR.r){ box.innerHTML=""; note.textContent="行のエリアを選ぶと、このエリアの単価が入ります。"; return; }
+  if(!CUR.r){ box.innerHTML=""; note.innerHTML='<ul class="lines"><li>STEP 2でエリアを選ぶと、そのエリアの単価が入ります</li></ul>'; return; }
   const t=curTemplate();
-  let n=(t&&t.note)||""; if(t&&t.fallback) n+=` ${TARIFF[area].name}エリアは公表単価がないため地域電力の単価を仮置きしています。`;
-  if(CUR.kind==="power" && area==="hokuriku" && !CUR.r.u) n+=" 北陸電力の低圧電力は単価未登録のため、明細の単価を入れてください。";
-  note.innerHTML = `<b>${CUR.co}</b>／${TARIFF[CUR.area]?TARIFF[CUR.area].name+"エリア":""}：${n} 単価はすべて税込で、自由に上書きできます。`;
-  const fld=(k,l)=>`<div class="f"><label for="cr_${k}">${l}</label><input id="cr_${k}" type="number" step="0.01" data-cr="${k}" value="${CUR.r[k]??""}"></div>`;
-  let h=(CUR_FIELDS[CUR.kind]||CUR_FIELDS.lamp).map(([k,l])=>fld(k,l)).join("")+CUR_COMMON.map(([k,l])=>fld(k,l)).join("");
-  if(CUR.r.mb!==""&&CUR.r.mb!=null) h+=fld("mb","基準市場価格（円/kWh）")+fld("mc","市場係数");
-  box.innerHTML=h;
+  const lines=((t&&t.note)||"").split("。").map(x=>x.trim()).filter(Boolean);
+  if(t&&t.fallback) lines.push(`${TARIFF[area].name}エリアは公表単価がないため地域電力の単価を仮置き`);
+  if(CUR.kind==="power" && area==="hokuriku" && !CUR.r.u) lines.push("北陸電力の低圧電力は単価未登録のため、明細の単価を入れてください");
+  lines.push("単価はすべて税込。明細と違うときは上書きしてください");
+  note.innerHTML = `<ul class="lines">${lines.map(x=>`<li>${x}</li>`).join("")}</ul>`;
+  const v=k=>CUR.r[k]??"";
+  const inp=(k,u,w)=>`<div class="unitin"><input id="cr_${k}" type="number" inputmode="decimal" step="0.01" data-cr="${k}" value="${v(k)}"${w?` style="max-width:${w}"`:""} aria-label="${k}"><span>${u}</span></div>`;
+  const fld=(k,l,u)=>`<div class="f"><label for="cr_${k}">${l}</label>${inp(k,u)}</div>`;
+  const G=(t,sm,body)=>`<div class="grp"><div class="grp-h">${t}${sm?`<small>${sm}</small>`:""}</div>${body}</div>`;
+  let basic, energy;
+  if(CUR.kind==="power"){
+    basic=fld("u","基本料金","円/kW");
+    energy=`<div class="fields">${fld("s","夏季（7〜9月）","円/kWh")}${fld("o","その他季","円/kWh")}</div>`;
+  } else {
+    basic = CUR.kind==="lampA" ? `<div class="fields">${fld("amin","最低料金","円")}${fld("ak","最低料金に含む量","kWh")}</div>` : fld("u","基本料金","円/10A・1kVA");
+    energy=`<div class="tiers"><span class="th"></span><span class="th">使用量の区切り</span><span class="th">単価</span>
+      <b>第1段階</b>${inp("b1","kWhまで")}${inp("t1","円")}
+      <b>第2段階</b>${inp("b2","kWhまで")}${inp("t2","円")}
+      <b>第3段階</b><span class="small">それ以上</span>${inp("t3","円")}</div>`;
+  }
+  let other=`<div class="fields">${fld("disc","電力量料金の割引","%")}${fld("other","その他の従量加算","円/kWh")}${fld("fixed","月額の固定費","円/月")}</div>`;
+  if(CUR.r.mb!==""&&CUR.r.mb!=null) other+=`<div class="fields">${fld("mb","基準市場価格","円/kWh")}${fld("mc","市場係数","倍")}</div>`;
+  box.innerHTML=G("基本料金","",basic)+G("電力量料金","1kWhあたり",energy)+G("割引・その他","ない場合は0のまま",other);
 }
 coEl.addEventListener("change",()=>{
   const v=coEl.value.trim();
