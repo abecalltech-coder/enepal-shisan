@@ -750,6 +750,11 @@ function update(){
   const res = rows.map(calc); lastResults=res;
   const curs = rows.map((r,i)=>res[i].empty?null:calcCur(r)); lastCurs=curs;
   res.forEach((c,i)=>{ const k=curs[i]; if(k && !c.bill){ c.bill=k.total; c.diff=k.total-c.total; c.billEst=true; } });
+  // 明細の請求額がある行は、現在の会社の合計を明細の金額にそろえる（単価表の計算との差は「明細との差」として表示）
+  curs.forEach((k,i)=>{ const c=res[i]; if(!k || !c.bill || c.billEst) return;
+    k.calcTotal=k.total; const g=c.bill-k.total;
+    if(g) k.items.push({k:"c_gap",label:"明細の請求額との差",v:g,f:`明細 ${fmt(c.bill)}円 − 単価表の計算 ${fmt(k.total)}円`,uu:"—",qq:"—"});
+    k.total=c.bill; });
   res.forEach((c,i)=>{
     const r=rows[i], k=curs[i];
     document.getElementById("w_"+r.id).innerHTML = c.warns.concat(k?k.warns:[]).map(w=>`<div class="warn">${w}</div>`).join("");
@@ -759,7 +764,7 @@ function update(){
       (c.bill?`<div class="out-main">現在 <b>${fmt(c.bill)}円</b>${c.billEst?'<span class="small">（単価表から計算）</span>':""}<br>エネパル <b>${fmt(c.total)}円</b></div><div><span class="pill ${d>=0?"pos":"neg"}">${fmt(Math.abs(d))}円 ${d>=0?"安くなる":"高くなる"}（${(Math.abs(d)/c.bill*100).toFixed(1)}%）</span></div>`
               :`<div class="out-main">エネパル試算額 <b>${fmt(c.total)}円</b></div>`) +
       (c.kwh?`<span class="small"><abbr class="help" title="請求額の合計を使用電力量で割った、1kWhあたりの実際の単価（税込・すべての項目込み）">1kWhあたり</abbr>　エネパル ${fu(c.total/c.kwh)}円${c.bill?`／現在 ${fu(c.bill/c.kwh)}円`:""}</span>`:"") +
-      (k && !c.billEst ? `<span class="small">単価表からの計算 ${fmt(k.total)}円（明細との差 ${c.bill-k.total>=0?"":"−"}${fmt(Math.abs(c.bill-k.total))}円）</span>`:"");
+      (k && !c.billEst ? `<span class="small">単価表からの計算 ${fmt(k.calcTotal??k.total)}円（明細との差 ${c.bill-(k.calcTotal??k.total)>=0?"":"−"}${fmt(Math.abs(c.bill-(k.calcTotal??k.total)))}円）</span>`:"");
   });
   // summary
   const withBill = res.filter(c=>!c.empty&&c.bill>0);
@@ -1277,7 +1282,8 @@ const CMP_ROWS = [
   {t:"安定供給維持費", ek:["stable","stadj"], ck:["c_stable"]},
   {t:"託送料金改定分", ek:["takuso"], ck:["c_takuso"]},
   {t:"その他（容量拠出金相当・カーボンフリー促進費・月額費など）", ek:[], ck:["c_ccap","c_cf","c_other","c_fixed"]},
-  {t:"国の電気料金支援", ek:["subsidy"], ck:["subsidy"]}
+  {t:"国の電気料金支援", ek:["subsidy"], ck:["subsidy"]},
+  {t:"明細の請求額との差（単価表で計算しきれない分）", ek:[], ck:["c_gap"], nd:true}
 ];
 const CMP_CATS = CMP_ROWS.filter(x=>x.t).map(x=>[x.t.replace(/^[①-④]\s*/,""), x.tot?[x.tot.e]:x.ek, x.tot?[x.tot.c]:x.ck]);
 const PER_KWH = ["e1","e2","e3","e4","saiene","subsidy","chotatsu","c_adj","c_other","c_cf"];
@@ -1329,6 +1335,7 @@ function renderCompTable(res,R,curs){
   if(bdView!=="all" && !all.includes(+bdView)) bdView="all";
   viewEl.innerHTML = all.length>1 ? `<label class="small" for="bdViewSel">表示</label> <select id="bdViewSel" style="width:auto">${[`<option value="all">${all.length}件の合計</option>`].concat(all.map(i=>`<option value="${i}"${String(i)===String(bdView)?" selected":""}>${monthLabel(R[i].month,i)}（${fmt(res[i].kwh)}kWh）</option>`)).join("")}</select>` : "";
   viewEl.hidden = all.length<2;
+  if(all.length>1 && bdView!=="all") viewEl.innerHTML += `<span class="small">※上の試算サマリは全${all.length}件の合計です。合わせて見るときは「${all.length}件の合計」を選んでください。</span>`;
   const idx = bdView==="all"?all:[+bdView];
   const kw=idx.reduce((a,i)=>a+res[i].kwh,0);
   const plans=[...new Set(idx.map(i=>PLANS[R[i].plan]))].join("・");
@@ -1359,7 +1366,7 @@ function renderCompTable(res,R,curs){
     }
     const showLab = /^[①③]/.test(row.t) ? false : row.t;
     const [t1,...t2]=row.t.split(/\s+/);
-    h+=`<tr class="it"><td>${/^[①-③]/.test(row.t)?`<span class="no">${t1}</span>${t2.join(" ")}`:row.t}</td>${hasCur?trip(C,showLab,"gc"):""}${trip(E,showLab,"ge")}${hasCur?dcell(c-e):""}</tr>`;
+    h+=`<tr class="it"><td>${/^[①-③]/.test(row.t)?`<span class="no">${t1}</span>${t2.join(" ")}`:row.t}</td>${hasCur?trip(C,showLab,"gc"):""}${row.nd?`<td class="gs ge" colspan="3"></td>`:trip(E,showLab,"ge")}${hasCur?(row.nd?`<td class="gs"></td>`:dcell(c-e)):""}</tr>`;
   });
   const te=idx.reduce((a,i)=>a+res[i].total,0);
   if(hasCur){
@@ -1367,8 +1374,7 @@ function renderCompTable(res,R,curs){
     h+=`<tr class="tot"><td>合計（税込）</td><td class="gs gc" colspan="3"><span class="tv">${fmt(tc)}</span><small>円</small></td><td class="gs ge" colspan="3"><span class="tv">${fmt(te)}</span><small>円</small></td>${dcell(d,"円",false)}</tr>`;
     h+=`<tr class="per"><td>1kWhあたり</td><td class="n gs gc" colspan="3">${kw?nu(fu(tc/kw)+"円"):"—"}</td><td class="n gs ge" colspan="3">${kw?nu(fu(te/kw)+"円"):"—"}</td>${kw?dcell((tc-te)/kw,"円",true):"<td></td>"}</tr>`;
     const real=idx.filter(i=>res[i].bill && !res[i].billEst);
-    if(real.length){ const bt=real.reduce((a,i)=>a+res[i].bill,0), ct=real.reduce((a,i)=>a+curs[i].total,0);
-      h+=`<tr class="per"><td class="small">（参考）明細の請求額</td><td class="n gs gc small" colspan="3">${fmt(bt)}円（単価表の計算との差 ${bt-ct>=0?"":"−"}${fmt(Math.abs(bt-ct))}円）</td><td class="gs ge" colspan="3"></td><td class="gs"></td></tr>`; }
+    if(real.length) h+=`<tr class="per"><td class="small" colspan="${ncol}">※現在の電気会社の合計は、明細の請求額（${real.length}件）に合わせています。単価表の計算との差は「明細の請求額との差」の行に出しています。</td></tr>`;
   } else {
     h+=`<tr class="tot"><td>エネパル試算額</td><td class="gs ge" colspan="3"><span class="tv">${fmt(te)}</span><small>円</small></td></tr>`;
     h+=`<tr class="per"><td>1kWhあたり</td><td class="n gs ge" colspan="3">${kw?nu(fu(te/kw)+"円"):"—"}</td></tr>`;
