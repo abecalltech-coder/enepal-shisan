@@ -936,6 +936,20 @@ const CS_B = {
 const CS_BASIC = Object.fromEntries(Object.keys(CS_S).map(a=>[a,{lamp:{...CS_B[a].lamp,t:CS_S[a].lamp.t},lampA:CS_S[a].lampA&&{...CS_B[a].lampA,t:CS_S[a].lampA.t},power:CS_S[a].power}]));
 const PALLIKE = {palLike:true,fuel:"none",adjLabel:"電源調達調整費（調達調整費）",stable:140,stableA:360,cf:0.3};
 const CS_NOTE = "電源調達調整費（エリアプライス×1.2と還元・追加請求基準で計算）・カーボンフリー促進費0.3円/kWh・安定供給維持費140円/kW・託送料金改定分を自動で計算（約款別冊 2026年11月1日改定版）";
+// 東名（オフィスでんき119）バリュープラン／再エネプランの単価（税込）。動力は負荷率割引と使用量の2段階あり
+const TPW=(u,s,o,s2,o2,lo,hi)=>({u,s,o,s2,o2,lo,hi});
+const TM = {
+  hokkaido:{lamp:L3(575.30,[24.96,30.14,32.15],280),power:TPW(1720.20,18.74,18.74,18.92,18.92,80,110)},
+  tohoku:{lamp:L3(422.40,[20.43,26.36,28.78]),power:TPW(1431.10,22.60,21.16,22.75,21.30,70,100)},
+  kanto:{lamp:L3(415.65,[20.11,25.74,28.31]),power:TPW(1284.41,18.22,16.65,18.37,16.80,100,130)},
+  chubu:{lamp:L3(489.01,[21.55,25.07,26.91]),power:TPW(1372.13,16.96,15.42,17.12,15.57,70,100)},
+  hokuriku:{lamp:L3(302.50,[18.42,21.45,22.46]),power:TPW(1226.50,17.04,15.98,17.16,16.10,70,100)},
+  kansai:{lampA:LA(442.86,15,[20.94,25.69,27.73]),lamp:L3(488.44,[18.54,21.31,23.41]),power:TPW(1210.84,14.90,13.42,15.03,13.54,100,130)},
+  chugoku:{lampA:LA(550.17,15,[22.20,27.77,28.77]),lamp:L3(502.67,[19.77,24.60,25.49]),power:TPW(1299.80,18.56,17.28,18.71,17.42,100,130)},
+  shikoku:{lampA:LA(570.70,11,[21.73,27.26,28.66]),lamp:L3(484.50,[19.69,23.13,24.99]),power:TPW(1343.10,19.15,17.70,19.29,17.85,100,130)},
+  kyushu:{lamp:L3(487.23,[18.52,23.44,25.20]),power:TPW(1222.70,17.10,15.43,17.27,15.58,100,130)}
+};
+const TM_NOTE = "公式サイトの単価（全エリア・税込）。電力調達調整費＝エリアプライス×1.15÷(1−損失率)×1.1 を還元基準6.0円・追加請求基準9.0円と比べて自動計算。容量拠出金相当額154円/kW（2026年度）。動力は負荷率割引（基本料金10%／8%）と使用量による2段階単価を反映";
 const TPL_PLAN = (n,extra) => [Object.assign({id:"tpl",n:n||"標準プラン（明細の単価を入力）",note:TPL_NOTE},extra||{})];
 const RAKUTEN_S = {hokkaido:44.67,tohoku:39.24,kanto:38.00,chubu:39.65,hokuriku:36.10,kansai:35.28,chugoku:39.89,shikoku:37.74,kyushu:39.70};
 const CO = [
@@ -950,7 +964,9 @@ const CO = [
   {n:"四国電力",a:"しこくでんりょく よんでん",cat:"地域電力",plans:REG_PLAN},
   {n:"九州電力",a:"きゅうしゅうでんりょく 九電",cat:"地域電力",plans:REG_PLAN},
   // 主要な新電力
-  {n:"東名",a:"とうめい 東名でんき TOMEI",cat:"新電力",plans:TPL_PLAN()},
+  {n:"東名（オフィスでんき119）",a:"東名 とうめい 東名でんき TOMEI オフィスでんき119",cat:"新電力",plans:[
+    {id:"tm_v",n:"バリュープラン（従量電灯・動力低圧）",rates:TM,tomei:true,fuel:"none",adjLabel:"電力調達調整費",ccap:154,note:TM_NOTE},
+    {id:"tm_r",n:"再エネプラン（従量電灯・動力低圧）",rates:TM,tomei:true,fuel:"none",adjLabel:"電力調達調整費",ccap:154,other:0.49,note:TM_NOTE+"。再エネ調達費0.49円/kWhを加算"}]},
   {n:"U-POWER（ユーパワー）",a:"ユーパワー ゆーぱわー UPOWER UPDATER",cat:"新電力",plans:[{id:"up",n:"低圧法人 電灯／動力プラン",
     note:"U-POWER 低圧法人向け料金定義（2025年11月1日版・税込）。東京・関西・中部以外は地域電力の単価を仮置き。市場調整額＝(エリアプライス平均−基準市場価格)×市場係数で自動計算（概算）。その他調整額1.0円/kWh。",
     rates:{kanto:{lamp:{u:281.55,b:[120,300],t:[29.80,36.40,40.49]},power:{u:1064.71,s:27.14,o:25.57}},
@@ -971,7 +987,9 @@ const CO = [
   {n:"地域創生電気",a:"ちいきそうせい 地域創生 地域創生ホールディングス",cat:"新電力",plans:[
     {id:"cs_s",n:"シンプルプラン系（シンプル／シンプルオフィス・店舗サポート等）",rates:CS_S,...PALLIKE,note:"公式サイトの法人向け単価（全エリア）。"+CS_NOTE},
     {id:"cs_b",n:"ビジネスプラン系（ビジネス／従量オフィス・店舗サポート等）",rates:CS_B,...PALLIKE,note:"公式サイトの法人向け単価（全エリア）。"+CS_NOTE}]},
-  {n:"ENEOSでんき",a:"エネオス えねおす eneos",cat:"新電力",plans:TPL_PLAN("Vプラン／Sプラン／動力（明細の単価を入力）")},
+  {n:"ENEOSでんき",a:"エネオス えねおす eneos",cat:"新電力",plans:[
+    {id:"en_v",n:"Vプラン",rates:{kanto:{lamp:L3(392.06,[29.85,34.90,36.95])},tohoku:{lamp:L3(410.71,[30.86,37.05,39.85])},hokuriku:{lamp:L3(302.50,[30.70,34.20,34.93])}},
+     note:"東京・東北は2026年11月1日時点、北陸は改定対象外エリアの公表単価（税込）。燃料費調整は地域電力と同じ単価を自動で使用（ENEOSは上限なし）"}]},
   // 携帯キャリア
   {n:"ドコモでんき",a:"docomo どこも NTTドコモ",cat:"携帯キャリア",plans:[
     {id:"reg",n:"Basic（地域電力の従量電灯と同等）",note:"基本料金・電力量料金は地域電力の従量電灯と同等（dポイント還元は含まず）。"},
@@ -994,7 +1012,8 @@ const CO = [
   {n:"ミツウロコでんき",a:"みつうろこ",cat:"ガス・石油系",plans:TPL_PLAN()},
   {n:"エネワン（サイサン）",a:"えねわん サイサン",cat:"ガス・石油系",plans:TPL_PLAN()},
   // その他大手系
-  {n:"Looopでんき",a:"るーぷ looop",cat:"その他大手系",plans:TPL_PLAN("スマートタイムONE等（市場連動・明細の単価を入力）",{adjLabel:"電源料金（市場連動分）",fuel:"none"})},
+  {n:"Looopでんき",a:"るーぷ looop スマートタイムONE",cat:"その他大手系",plans:[
+    {id:"lp",n:"スマートタイムONE（電灯・動力）",looop:true,fuel:"none",svc:7.0,svcP:5.5,note:"基本料金なし。電源料金＝エリアプライス÷(1−損失率)×1.1、サービス料金 電灯7.00円・動力5.50円/kWh、託送料金相当額（基本・従量）はエリアの託送単価をそのまま使用。容量拠出金相当額は明細の単価を入れてください"}]},
   {n:"オクトパスエナジー",a:"おくとぱす octopus",cat:"その他大手系",plans:TPL_PLAN()},
   {n:"イーレックス",a:"いーれっくす erex",cat:"その他大手系",plans:TPL_PLAN()},
   {n:"シン・エナジー",a:"しんえなじー",cat:"その他大手系",plans:TPL_PLAN()},
@@ -1021,10 +1040,10 @@ function curTemplate(){
   const p=co.plans.find(x=>x.id===CUR.plan)||co.plans[0], area=CUR.area, G=REG[area];
   if(!G) return null;
   let kind=CUR.kind; if(kind==="lampA" && !G.A && !(p.rates&&p.rates[area]&&p.rates[area].lampA)) kind="lamp";
-  const o={u:"",amin:"",ak:"",b1:120,b2:300,t1:"",t2:"",t3:"",s:"",o:"",fixed:+p.fixed||0,other:+p.other||0,disc:0,mb:"",mc:"",adjLabel:p.adjLabel||"燃料費等調整額"};
+  const o={u:"",amin:"",ak:"",b1:120,b2:300,t1:"",t2:"",t3:"",s:"",o:"",fixed:+p.fixed||0,other:+p.other||0,disc:0,mb:"",mc:"",ccap:+p.ccap||0,svc:p.looop?(kind==="power"?p.svcP:p.svc):"",adjLabel:p.adjLabel||"燃料費等調整額"};
   let own = p.rates&&p.rates[area]&&p.rates[area][kind], csFb=false;
   if(!own && p.palLike && CS_S[area] && CS_S[area][kind]){ own=CS_S[area][kind]; csFb=true; }
-  if(kind==="power"){ const P=own||(G.P?{u:G.P.b,s:G.P.s,o:G.P.o}:null); if(P){o.u=P.u;o.s=P.s;o.o=P.o;} }
+  if(kind==="power"){ const P=own||(G.P?{u:G.P.b,s:G.P.s,o:G.P.o}:null); if(P){o.u=P.u;o.s=P.s;o.o=P.o; if(P.s2!=null){o.s2=P.s2;o.o2=P.o2;o.lo=P.lo;o.hi=P.hi;}} }
   else if(kind==="lampA"){ const A=own||{amin:G.A.amin,k:G.A.k,b:[120,300],t:G.A.t}; o.amin=A.amin;o.ak=A.k;o.b1=A.b[0];o.b2=A.b[1];[o.t1,o.t2,o.t3]=A.t; }
   else { const B=own||G.B; o.u=B.u;o.b1=B.b[0];o.b2=B.b[1];[o.t1,o.t2,o.t3]=B.t; }
   if(p.flat && kind!=="power"){ const f=p.flat.all||[p.flat[area],p.flat[area],p.flat[area]]; o.u=0;o.amin=0;o.ak=0;[o.t1,o.t2,o.t3]=f; if(p.b){o.b1=p.b[0];o.b2=p.b[1];} }
@@ -1040,7 +1059,7 @@ const CUR_FIELDS = {
   lampA:[["amin","最低料金（円）"],["ak","最低料金に含むkWh"],["b1","第1段階の上限（kWh）"],["b2","第2段階の上限（kWh）"],["t1","第1段階（円/kWh）"],["t2","第2段階（円/kWh）"],["t3","第3段階（円/kWh）"]],
   power:[["u","基本料金（円/kW）"],["s","夏季 7〜9月（円/kWh）"],["o","その他季（円/kWh）"]]
 };
-const CUR_COMMON = [["disc","電力量料金の割引（%）"],["other","その他の従量加算（円/kWh）"],["fixed","月額の固定費（円/月）"]];
+const CUR_COMMON = [["disc","電力量料金の割引（%）"],["other","その他の従量加算（円/kWh）"],["fixed","月額の固定費（円/月）"],["ccap","容量拠出金相当（円/kW）"]];
 const coListEl=document.getElementById("coList"), coEl=document.getElementById("cur_co"), cpEl=document.getElementById("cur_plan"), ckEl=document.getElementById("cur_kind");
 coListEl.innerHTML = CO.map(c=>`<option value="${c.n}">${c.cat}｜${c.a}</option>`).join("");
 function renderCur(){
@@ -1064,9 +1083,14 @@ function renderCur(){
   const fld=(k,l,u)=>`<div class="f"><label for="cr_${k}">${l}</label>${inp(k,u)}</div>`;
   const G=(t,sm,body)=>`<div class="grp"><div class="grp-h">${t}${sm?`<small>${sm}</small>`:""}</div>${body}</div>`;
   let basic, energy;
-  if(CUR.kind==="power"){
+  const PLr=curPlanObj()||{};
+  if(PLr.looop){
+    basic=`<ul class="lines"><li>基本料金はありません</li><li>託送基本料金相当額（エリアの託送単価×契約容量）を自動で計算</li></ul>`;
+    energy=`<div class="fields">${fld("svc","サービス料金","円/kWh")}</div><ul class="lines"><li>電源料金：エリアプライス÷(1−損失率)×1.1（自動）</li><li>託送従量料金相当額：エリアの託送単価（自動）</li></ul>`;
+  } else if(CUR.kind==="power"){
     basic=fld("u","基本料金","円/kW");
     energy=`<div class="fields">${fld("s","夏季（7〜9月）","円/kWh")}${fld("o","その他季","円/kWh")}</div>`;
+    if(CUR.r.s2!=null&&CUR.r.s2!=="") energy+=`<div class="fields">${fld("s2","夏季（超過分）","円/kWh")}${fld("o2","その他季（超過分）","円/kWh")}${fld("hi","超過の境目（契約kW×）","kWh")}${fld("lo","負荷率割引10%の境目（契約kW×）","kWh")}</div>`;
   } else {
     basic = CUR.kind==="lampA" ? `<div class="fields">${fld("amin","最低料金","円")}${fld("ak","最低料金に含む量","kWh")}</div>` : fld("u","基本料金","円/10A・1kVA");
     energy=`<div class="tiers"><span class="th"></span><span class="th">使用量の区切り</span><span class="th">単価</span>
@@ -1074,7 +1098,7 @@ function renderCur(){
       <b>第2段階</b>${inp("b2","kWhまで")}${inp("t2","円")}
       <b>第3段階</b><span class="small">それ以上</span>${inp("t3","円")}</div>`;
   }
-  let other=`<div class="fields">${fld("disc","電力量料金の割引","%")}${fld("other","その他の従量加算","円/kWh")}${fld("fixed","月額の固定費","円/月")}</div>`;
+  let other=`<div class="fields">${fld("disc","電力量料金の割引","%")}${fld("other","その他の従量加算","円/kWh")}${fld("fixed","月額の固定費","円/月")}${fld("ccap","容量拠出金相当","円/kW")}</div>`;
   if(CUR.r.mb!==""&&CUR.r.mb!=null) other+=`<div class="fields">${fld("mb","基準市場価格","円/kWh")}${fld("mc","市場係数","倍")}</div>`;
   box.innerHTML=G("基本料金","",basic)+G("電力量料金","1kWhあたり",energy)+G("割引・その他","ない場合は0のまま",other);
 }
@@ -1105,12 +1129,30 @@ function calcCur(r){
   const R=CUR.r, n=v=>+v||0, items=[], warns=[];
   const kwh=Math.max(0,Math.round(+r.kwh||0)), cap=+r.cap||0, month=r.month?+r.month.split("-")[1]:0;
   let basic=0,bf="",bl="基本料金",tiers=[];
-  if(CUR.kind==="power"){
+  const PL=curPlanObj()||{}, AR=S.area[r.area], TT=TARIFF[r.area];
+  const kvaN = CUR.kind==="power"?cap:(r.unit==="A"?cap/10:cap);
+  if(PL.looop){
+    const pw=CUR.kind==="power", loss=(+AR.loss||0)/100, ap=+r.ap||0;
+    bl="託送基本料金相当額";
+    if(pw){ basic=cap*n(AR.pb); bf=`${cap}kW × ${fu(n(AR.pb))}円`; }
+    else if(TT.zone===2){ const ex=Math.max(0,kvaN-6); basic=n(AR.li)+ex*n(AR.lx); bf=`6kVAまで ${fu(n(AR.li))}円`+(ex>0?` ＋ ${fmt(ex,ex%1?1:0)}kVA × ${fu(n(AR.lx))}円`:""); }
+    else { basic=kvaN*n(AR.lb); bf=`${fmt(kvaN,kvaN%1?1:0)}kVA × ${fu(n(AR.lb))}円`; }
+    if(!ap) warns.push("Looopの電源料金の計算にエリアプライス月平均が必要です。");
+    const mk=ap/(1-loss)*1.1, tk=pw?n(AR.pk):n(AR.lk);
+    tiers=[{label:"電源料金（市場連動）",q:kwh,r:mk,v:t2(kwh*mk)},{label:"サービス料金",q:kwh,r:n(R.svc),v:t2(kwh*n(R.svc))},{label:"託送従量料金相当額",q:kwh,r:tk,v:t2(kwh*tk)}];
+  } else if(CUR.kind==="power"){
     basic=cap*n(R.u); bf=`${cap}kW × ${fu(n(R.u))}円`;
+    if(PL.tomei && n(R.hi) && cap>0){
+      const lf=kwh/cap, dr = lf<=n(R.lo)?0.10 : lf<n(R.hi)?0.08 : 0;
+      if(dr){ basic*=1-dr; bf+=` × ${1-dr}（負荷率割引${dr*100}%：使用量が契約kWの${fmt(lf,1)}倍）`; }
+    }
     if(r.plan==="PD"&&r.pf==="down"){basic*=0.95;bf+=" × 0.95（力率85%超 5%割引）";}
     else if(r.plan==="PD"&&r.pf==="up"){basic*=1.05;bf+=" × 1.05（力率85%未満 5%割増）";}
     const su=month>=7&&month<=9, rate=n(su?R.s:R.o);
-    tiers=[{q:kwh,r:rate,v:t2(kwh*rate),label:su?"夏季":"その他季"}];
+    if(PL.tomei && n(R.hi) && cap>0 && kwh>cap*n(R.hi)){
+      const q1=cap*n(R.hi), q2=kwh-q1, r2=n(su?R.s2:R.o2);
+      tiers=[{q:q1,r:rate,v:t2(q1*rate),label:su?"夏季":"その他季"},{q:q2,r:r2,v:t2(q2*r2),label:(su?"夏季":"その他季")+"（超過分）"}];
+    } else tiers=[{q:kwh,r:rate,v:t2(kwh*rate),label:su?"夏季":"その他季"}];
   } else if(CUR.kind==="lampA"){
     const ak=n(R.ak); bl="最低料金"; basic=n(R.amin); bf=`最初の${ak}kWhまで ${fu(basic)}円`;
     tiers=tierCalc(Math.max(0,kwh-ak),[Math.max(0,n(R.b1)-ak),Math.max(0,n(R.b2)-ak)],[n(R.t1),n(R.t2),n(R.t3)]);
@@ -1119,7 +1161,7 @@ function calcCur(r){
     bf=r.unit==="A"?`${cap}A（10Aあたり ${fu(n(R.u))}円）`:`${cap}${r.unit} × ${fu(n(R.u))}円`;
     tiers=tierCalc(kwh,[n(R.b1),n(R.b2)],[n(R.t1),n(R.t2),n(R.t3)]);
   }
-  if(tiers.length===3) tiers.forEach((x,i)=>x.label=`第${i+1}段階`);
+  if(tiers.length===3 && !PL.looop) tiers.forEach((x,i)=>x.label=`第${i+1}段階`);
   if(kwh===0 && CUR.kind!=="lampA" && basic){ basic/=2; bf+="（使用量0のため半額）"; }
   basic=t2(basic);
   items.push({k:"c_basic",label:bl,v:basic,f:bf});
@@ -1129,11 +1171,11 @@ function calcCur(r){
   if(n(R.disc)) items.push({k:"c_disc",label:"電力量料金の割引",v:t2(-eTot*n(R.disc)/100),f:`${fu(eTot)}円 × ${n(R.disc)}%`});
   const ad=curAdjUnit(r); let au=0, af;
   if(ad){ au=ad.v; af=`${fmt(kwh)}kWh × ${fu(au)}円（${ad.f}）`; }
-  else { af="単価未入力のため0円"; warns.push(`現契約の${R.adjLabel||"燃料費等調整額"}の単価が未入力です。明細の単価を「現契約の調整単価」に入れてください。`); }
-  items.push({k:"c_adj",label:R.adjLabel||"燃料費等調整額",v:t2(kwh*au),f:af});
+  else if(!PL.looop){ af="単価未入力のため0円"; warns.push(`現契約の${R.adjLabel||"燃料費等調整額"}の単価が未入力です。明細の単価を「現契約の調整単価」に入れてください。`); }
+  if(ad || !PL.looop) items.push({k:"c_adj",label:R.adjLabel||"燃料費等調整額",v:t2(kwh*au),f:af});
+  if(n(R.ccap)){ const kwc = (CUR.kind==="lampA")?6:kvaN; items.push({k:"c_ccap",label:"容量拠出金相当額",v:t2(kwc*n(R.ccap)),f:`${fmt(kwc,kwc%1?1:0)}kW × ${fu(n(R.ccap))}円`,uu:`${fu(n(R.ccap))}円/kW`,qq:`${fmt(kwc,kwc%1?1:0)}kW${CUR.kind==="power"?"":"換算"}`}); }
   if(n(R.other)) items.push({k:"c_other",label:"その他の従量加算",v:t2(kwh*n(R.other)),f:`${fmt(kwh)}kWh × ${fu(n(R.other))}円`});
   if(n(R.fixed)) items.push({k:"c_fixed",label:"月額の固定費",v:t2(n(R.fixed)),f:`月額 ${fu(n(R.fixed))}円`});
-  const PL=curPlanObj()||{};
   if(PL.palLike){
     items.push({k:"c_cf",label:"カーボンフリー促進費",v:t2(kwh*PL.cf*1.1),f:`${fmt(kwh)}kWh × ${fu(PL.cf)}円 × 1.1`});
     const kva=CUR.kind==="power"?cap:(r.unit==="A"?cap/10:cap);
@@ -1188,6 +1230,12 @@ function curPlanObj(){ const co=findCo(CUR.co); return co?(co.plans.find(x=>x.id
 function curAdjUnit(r){ // 現契約の調整単価：明細入力 → 市場調整の自動計算 → 地域電力の燃料費調整単価（自動）
   const R=CUR.r, p=curPlanObj()||{};
   if(r.cfa!==""&&r.cfa!=null) return {v:+r.cfa, f:"明細の単価"};
+  if(p.tomei){
+    const A=S.area[r.area||CUR.area]; if(!A || r.ap===""||r.ap==null) return null;
+    const pu=t2((+r.ap)*1.15/(1-(+A.loss||0)/100)*1.1);
+    const v = pu<6 ? -(6-pu) : pu>9 ? pu-9 : 0;
+    return {v, f:`調達単価 ${fu(+r.ap)}×1.15÷(1−${A.loss}%)×1.1＝${fu(pu)}円（還元基準6.00・追加請求基準9.00）${pu<6?"→還元":pu>9?"→追加請求":"→基準内で0円"}（自動）`};
+  }
   if(p.palLike){
     const A=S.area[r.area||CUR.area]; if(!A || r.ap===""||r.ap==null) return null;
     const pu=(+r.ap)*1.2, rb=+A.rb, ab=+A.ab;
@@ -1200,7 +1248,8 @@ function curAdjUnit(r){ // 現契約の調整単価：明細入力 → 市場調
 }
 function curUnits(r){
   const R=CUR.r, n=v=>+v||0, U={};
-  if(CUR.kind==="power"){ U.basic=`${fu(n(R.u))}円/kW`; U.energy=`夏季 ${fu(n(R.s))}／その他季 ${fu(n(R.o))}円/kWh`; }
+  if((curPlanObj()||{}).looop){ U.basic="なし（託送基本料金相当額のみ）"; U.energy=`電源料金（市場連動）＋サービス料金 ${fu(n(R.svc))}円＋託送従量相当`; }
+  else if(CUR.kind==="power"){ U.basic=`${fu(n(R.u))}円/kW`; U.energy=`夏季 ${fu(n(R.s))}／その他季 ${fu(n(R.o))}円/kWh`; }
   else {
     U.basic = CUR.kind==="lampA"?`最低料金 ${fu(n(R.amin))}円（${n(R.ak)}kWhまで）`:`${fu(n(R.u))}円/10A・1kVA`;
     U.energy = (n(R.t1)===n(R.t2)&&n(R.t2)===n(R.t3)) ? `一律 ${fu(n(R.t1))}円/kWh`
@@ -1213,7 +1262,7 @@ function curUnits(r){
   const PLu=curPlanObj()||{};
   if(PLu.palLike){ U.stable=CUR.kind==="lampA"?`${fu(PLu.stableA*1.1)}円/件`:`${fu(PLu.stable*1.1)}円/kW`; U.takuso="容量＋使用量に応じて（自動計算）"; }
   else { U.stable="—（料金に含む）"; U.takuso="—（料金に含む）"; }
-  const o=[]; if(PLu.palLike) o.push(`カーボンフリー促進費 ${fu(PLu.cf*1.1)}円/kWh`); if(n(R.other)) o.push(`${fu(n(R.other))}円/kWh`); if(n(R.fixed)) o.push(`月額 ${fu(n(R.fixed))}円`);
+  const o=[]; if(n(R.ccap)) o.push(`容量拠出金相当 ${fu(n(R.ccap))}円/kW`); if(PLu.palLike) o.push(`カーボンフリー促進費 ${fu(PLu.cf*1.1)}円/kWh`); if(n(R.other)) o.push(`${fu(n(R.other))}円/kWh`); if(n(R.fixed)) o.push(`月額 ${fu(n(R.fixed))}円`);
   U.other=o.length?o.join("＋"):"なし";
   return U;
 }
@@ -1227,7 +1276,7 @@ const CMP_ROWS = [
   {t:"燃料費等調整額／電源調達調整費", ek:["chotatsu"], ck:["c_adj"]},
   {t:"安定供給維持費", ek:["stable","stadj"], ck:["c_stable"]},
   {t:"託送料金改定分", ek:["takuso"], ck:["c_takuso"]},
-  {t:"その他（カーボンフリー促進費・容量拠出金相当・月額費など）", ek:[], ck:["c_cf","c_other","c_fixed"]},
+  {t:"その他（容量拠出金相当・カーボンフリー促進費・月額費など）", ek:[], ck:["c_ccap","c_cf","c_other","c_fixed"]},
   {t:"国の電気料金支援", ek:["subsidy"], ck:["subsidy"]}
 ];
 const CMP_CATS = CMP_ROWS.filter(x=>x.t).map(x=>[x.t.replace(/^[①-④]\s*/,""), x.tot?[x.tot.e]:x.ek, x.tot?[x.tot.c]:x.ck]);
@@ -1237,8 +1286,10 @@ function unitQty(it, r, c, side){
   const kwh=c.kwh, cap=+r.cap||0, un=r.unit||"kVA", capN=un==="A"?cap/10:cap, capU=un==="A"?"10A":un, capT=`${fmt(cap,cap%1?1:0)}${un}`;
   const zone2A = side==="e" && !isPowerPlan(r.plan) && TARIFF[r.area].zone===2 && cap<6 && r.plan!=="GH";
   const k=it.k, v=it.v;
+  if(it.uu) return {u:it.uu, q:it.qq};
   if(it.qn!=null) return {u:`${fu(it.un)}円/kWh`, q:`${fmt(it.qn)}kWh`, qn:it.qn, pk:true};
   if(PER_KWH.includes(k)) return {u:kwh?`${fu(v/kwh)}円/kWh`:"—", q:`${fmt(kwh)}kWh`, qn:kwh, pk:true};
+  if(k==="c_basic" && (curPlanObj()||{}).looop) return {u:"エリアの託送単価", q:capT};
   if(k==="c_basic" && CUR.kind==="lampA") return {u:`${fu(v)}円`, q:`最低料金（${+CUR.r.ak||0}kWhまで）`};
   if(k==="basic" && zone2A) return {u:`${fu(v)}円`, q:isPal(r.plan)?"最低料金":"1需要場所"};
   if((k==="stable"||k==="stadj") && zone2A) return {u:`${fu(v)}円/件`, q:"1件"};
