@@ -218,6 +218,7 @@ textarea#copyfallback{width:100%;min-height:160px;font-family:var(--f-num);font-
         <div class="f"><label for="cur_plan">プラン</label><select id="cur_plan"></select></div>
         <div class="f"><label for="cur_kind">契約種別</label><select id="cur_kind"><option value="lamp">電灯（従量電灯B・C など）</option><option value="lampA">電灯A（最低料金制）</option><option value="power">動力（低圧電力）</option></select></div>
         <div class="f"><label>エリア</label><div id="cur_area" class="small" style="padding-top:8px"></div></div>
+        <div class="f"><label for="cur_basis">比較に使う現在の金額</label><select id="cur_basis"><option value="calc">単価表の計算（項目ごとに正しく比較）</option><option value="bill">明細の請求額（実際の支払額）</option></select><span class="hint">明細の請求額を入れた明細だけに関係します</span></div>
       </div>
     </div>
     <div id="curNote"></div>
@@ -749,8 +750,11 @@ function update(){
   store.set("enepal_rows_v2", rows.map(({id,...r})=>r));
   const res = rows.map(calc); lastResults=res;
   const curs = rows.map((r,i)=>res[i].empty?null:calcCur(r)); lastCurs=curs;
-  res.forEach((c,i)=>{ const k=curs[i]; if(k && !c.bill){ c.bill=k.total; c.diff=k.total-c.total; c.billEst=true; } });
-  // 明細の請求額がある行は、現在の会社の合計を明細の金額にそろえる（単価表の計算との差は「明細との差」として表示）
+  const basis = CUR.basis||"calc";
+  res.forEach((c,i)=>{ const k=curs[i]; if(!k) return;
+    if(c.bill && basis==="calc"){ c.realBill=c.bill; c.bill=0; }
+    if(!c.bill){ c.bill=k.total; c.diff=k.total-c.total; c.billEst=true; } });
+  // 「明細の請求額」基準：現在の会社の合計を明細の金額にそろえる（単価表の計算との差は「明細との差」として表示）
   curs.forEach((k,i)=>{ const c=res[i]; if(!k || !c.bill || c.billEst) return;
     k.calcTotal=k.total; const g=c.bill-k.total;
     if(g) k.items.push({k:"c_gap",label:"明細の請求額との差",v:g,f:`明細 ${fmt(c.bill)}円 − 単価表の計算 ${fmt(k.total)}円`,uu:"—",qq:"—"});
@@ -764,6 +768,7 @@ function update(){
       (c.bill?`<div class="out-main">現在 <b>${fmt(c.bill)}円</b>${c.billEst?'<span class="small">（単価表から計算）</span>':""}<br>エネパル <b>${fmt(c.total)}円</b></div><div><span class="pill ${d>=0?"pos":"neg"}">${fmt(Math.abs(d))}円 ${d>=0?"安くなる":"高くなる"}（${(Math.abs(d)/c.bill*100).toFixed(1)}%）</span></div>`
               :`<div class="out-main">エネパル試算額 <b>${fmt(c.total)}円</b></div>`) +
       (c.kwh?`<span class="small"><abbr class="help" title="請求額の合計を使用電力量で割った、1kWhあたりの実際の単価（税込・すべての項目込み）">1kWhあたり</abbr>　エネパル ${fu(c.total/c.kwh)}円${c.bill?`／現在 ${fu(c.bill/c.kwh)}円`:""}</span>`:"") +
+      (k && c.realBill ? `<span class="small">明細の請求額 ${fmt(c.realBill)}円（単価表の計算との差 ${c.realBill-k.total>=0?"+":"−"}${fmt(Math.abs(c.realBill-k.total))}円）</span>`:"") +
       (k && !c.billEst ? `<span class="small">単価表からの計算 ${fmt(k.calcTotal??k.total)}円（明細との差 ${c.bill-(k.calcTotal??k.total)>=0?"":"−"}${fmt(Math.abs(c.bill-(k.calcTotal??k.total)))}円）</span>`:"");
   });
   // summary
@@ -1072,7 +1077,7 @@ function renderCur(){
   coEl.value=CUR.co||"";
   document.getElementById("cur_area").textContent = area?`${TARIFF[area].name}エリア（明細1のエリア）`:"STEP 2でエリアを選ぶと入ります";
   cpEl.innerHTML = co?co.plans.map(p=>`<option value="${p.id}"${p.id===CUR.plan?" selected":""}>${p.n}</option>`).join(""):`<option value="">先に電気会社を選んでください</option>`;
-  cpEl.disabled=!co; ckEl.disabled=!co; ckEl.value=CUR.kind||"lamp";
+  cpEl.disabled=!co; ckEl.disabled=!co; const bsEl=document.getElementById("cur_basis"); bsEl.value=CUR.basis||"calc"; bsEl.disabled=!co; ckEl.value=CUR.kind||"lamp";
   const box=document.getElementById("curRates"), note=document.getElementById("curNote");
   if(!co){ box.innerHTML=""; note.innerHTML='<ul class="lines"><li>電気会社を入れると、その会社の単価が自動で入ります</li><li>試算結果に「現在の会社｜エネパル｜差額」の比較表が出ます</li></ul>'; document.getElementById("curBtns").hidden=true; return; }
   document.getElementById("curBtns").hidden=false;
@@ -1117,6 +1122,7 @@ coEl.addEventListener("change",()=>{
 });
 cpEl.addEventListener("change",()=>{CUR.plan=cpEl.value; loadCurTemplate(); renderCur(); update();});
 ckEl.addEventListener("change",()=>{CUR.kind=ckEl.value; loadCurTemplate(); renderCur(); update();});
+document.getElementById("cur_basis").addEventListener("change",e=>{CUR.basis=e.target.value; saveCur(); update();});
 document.getElementById("curRates").addEventListener("input",e=>{const k=e.target.dataset.cr; if(!k||!CUR.r) return; CUR.r[k]=e.target.value===""?"":+e.target.value; saveCur(); update();});
 document.getElementById("curReset").onclick=()=>{loadCurTemplate(); renderCur(); update(); toast("単価を初期値に戻しました");};
 document.getElementById("curClear").onclick=()=>{CUR={co:"",plan:"",kind:"",area:"",r:null}; saveCur(); refreshCurRows();};
@@ -1373,6 +1379,9 @@ function renderCompTable(res,R,curs){
     const tc=idx.reduce((a,i)=>a+curs[i].total,0), d=tc-te;
     h+=`<tr class="tot"><td>合計（税込）</td><td class="gs gc" colspan="3"><span class="tv">${fmt(tc)}</span><small>円</small></td><td class="gs ge" colspan="3"><span class="tv">${fmt(te)}</span><small>円</small></td>${dcell(d,"円",false)}</tr>`;
     h+=`<tr class="per"><td>1kWhあたり</td><td class="n gs gc" colspan="3">${kw?nu(fu(tc/kw)+"円"):"—"}</td><td class="n gs ge" colspan="3">${kw?nu(fu(te/kw)+"円"):"—"}</td>${kw?dcell((tc-te)/kw,"円",true):"<td></td>"}</tr>`;
+    const rb=idx.filter(i=>res[i].realBill);
+    if(rb.length){ const bt=rb.reduce((a,i)=>a+res[i].realBill,0), ct=rb.reduce((a,i)=>a+curs[i].total,0), g=bt-ct;
+      h+=`<tr class="per"><td class="small" colspan="${ncol}">※比較は「単価表の計算」で行っています（各項目を足すと合計と一致します）。参考：明細の請求額 ${fmt(bt)}円（単価表の計算との差 ${g>=0?"+":"−"}${fmt(Math.abs(g))}円）。${Math.abs(g)>bt*0.05?"差が大きいため、単価・調整単価・容量拠出金相当などが明細と合っているか確認してください。":""}明細の金額で比較したいときは、STEP 1の「比較に使う現在の金額」で「明細の請求額」を選んでください。</td></tr>`; }
     const real=idx.filter(i=>res[i].bill && !res[i].billEst);
     if(real.length) h+=`<tr class="per"><td class="small" colspan="${ncol}">※現在の電気会社の合計は、明細の請求額（${real.length}件）に合わせています。単価表の計算との差は「明細の請求額との差」の行に出しています（差額の列もこの行を含めて合計と一致します）。差が大きいときは、市場価格の変動・容量拠出金相当・調整単価など、単価表に入っていない料金が明細に含まれています。</td></tr>`;
   } else {
