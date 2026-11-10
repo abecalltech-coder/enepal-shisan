@@ -135,7 +135,7 @@ summary{cursor:pointer;font-weight:700;font-size:.9rem}
 .grps{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
 #bd th,#bd td{vertical-align:top}
 #bd{font-size:.86rem}
-#bd .gc{background:var(--cur-soft)} #bd .ge{background:var(--ene-soft)}
+#bd .gc{background:var(--cur-soft)} #bd.hidecur .gc{display:none} #bd .ge{background:var(--ene-soft)}
 #bd thead th.gh{font-size:.78rem;color:var(--muted);line-height:1.4;padding:10px}
 #bd thead th.gh span{display:block;font-size:.95rem;font-weight:700;color:var(--ink)}
 #bd thead th.ge.gh span{color:var(--accent)}
@@ -1355,6 +1355,8 @@ function cellLines(keys, idx, R, src, res, side){
   return out;
 }
 let bdView = "all";
+let hideCurCol = (()=>{ try{ return localStorage.getItem("enepal_hidecur")==="1"; }catch(e){ return false; } })();
+document.addEventListener("click",e=>{ if(e.target.id==="toggleCur"){ hideCurCol=!hideCurCol; try{ localStorage.setItem("enepal_hidecur",hideCurCol?"1":"0"); }catch(_){} update(); } });
 function renderCompTable(res,R,curs){
   const hasCur = curs.some(Boolean);
   const all=res.map((c,i)=>i);
@@ -1363,6 +1365,11 @@ function renderCompTable(res,R,curs){
   viewEl.innerHTML = all.length>1 ? `<label class="small" for="bdViewSel">表示</label> <select id="bdViewSel" style="width:auto">${[`<option value="all">${all.length}件の合計</option>`].concat(all.map(i=>`<option value="${i}"${String(i)===String(bdView)?" selected":""}>${monthLabel(R[i].month,i)}（${fmt(res[i].kwh)}kWh）</option>`)).join("")}</select>` : "";
   viewEl.hidden = all.length<2;
   if(all.length>1 && bdView!=="all") viewEl.innerHTML += `<span class="small">※上の試算サマリは全${all.length}件の合計です。合わせて見るときは「${all.length}件の合計」を選んでください。</span>`;
+  if(curs.some(Boolean)){
+    viewEl.hidden=false;
+    viewEl.insertAdjacentHTML("afterbegin", `<button type="button" id="toggleCur" aria-pressed="${hideCurCol}">${hideCurCol?"現在の電気会社の欄を表示する":"現在の電気会社の欄を非表示にする"}</button>`);
+  }
+  document.getElementById("bd").classList.toggle("hidecur", hideCurCol && curs.some(Boolean));
   const idx = bdView==="all"?all:[+bdView];
   const kw=idx.reduce((a,i)=>a+res[i].kwh,0);
   const plans=[...new Set(idx.map(i=>PLANS[R[i].plan]))].join("・");
