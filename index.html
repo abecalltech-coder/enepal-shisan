@@ -604,17 +604,17 @@ function calcPal(r){
       if(r.unit==="A"){ basic=P.u*cap/10; basicF=`従量電灯B ${cap}A（10Aあたり ${fu(P.u)}円）`; if(cap<10||cap>60||cap%5) warns.push("従量電灯Bの契約電流は10〜60Aで入力してください。"); }
       else { basic=P.u*cap; basicF=`従量電灯C ${cap}kVA × ${fu(P.u)}円`; if(cap<6) warns.push("6kVA未満の場合は単位を「A」にして契約電流で入力してください。"); }
       const b2 = r.area==="hokkaido"?280:300;
-      tiers=tierCalc(kwh,[120,b2],P.t); tierNote=`120kWh／${b2}kWhで区切り`;
+      tiers=tierCalc(kwh,[120,b2],P.t); tierNote=`120kWh／${b2}kWhで区切り`; tiers.rng=[`〜120kWh`,`120〜${b2}kWh`,`${b2}kWh超`];
     } else if(cap<6){
       typeA=true; const aminK = r.area==="shikoku"?11:15;
       basicLabel="最低料金"; basic=P.amin; basicF=`従量電灯A 最初の${aminK}kWhまで ${fu(P.amin)}円`;
       const rest=Math.max(0,kwh-aminK);
-      tiers=tierCalc(rest,[120-aminK,300-aminK],P.at); tierNote=`${aminK}kWh超〜120kWh／〜300kWh／300kWh超`;
+      tiers=tierCalc(rest,[120-aminK,300-aminK],P.at); tierNote=`${aminK}kWh超〜120kWh／〜300kWh／300kWh超`; tiers.rng=[`${aminK}〜120kWh`,`120〜300kWh`,`300kWh超`];
     } else {
       basic=P.bk*cap; basicF=`従量電灯B ${cap}kVA × ${fu(P.bk)}円`;
-      tiers=tierCalc(kwh,[120,300],P.bt); tierNote="120kWh／300kWhで区切り";
+      tiers=tierCalc(kwh,[120,300],P.bt); tierNote="120kWh／300kWhで区切り"; tiers.rng=[`〜120kWh`,`120〜300kWh`,`300kWh超`];
     }
-    tiers.forEach((x,i)=>x.label=`第${i+1}段階`);
+    tiers.forEach((x,i)=>x.label=`第${i+1}段階（${tiers.rng[i]}）`);
   }
   if(kwh===0 && !typeA){ basic=basic/2; basicF+="（使用量0のため半額）"; }
   basic=t2(basic);
@@ -1203,7 +1203,9 @@ function calcCur(r){
     bf=r.unit==="A"?`${cap}A（10Aあたり ${fu(n(R.u))}円）`:`${cap}${r.unit} × ${fu(n(R.u))}円`;
     tiers=tierCalc(kwh,[n(R.b1),n(R.b2)],[n(R.t1),n(R.t2),n(R.t3)]);
   }
-  if(tiers.length===3 && !PL.looop) tiers.forEach((x,i)=>x.label=`第${i+1}段階`);
+  if(tiers.length===3 && !PL.looop){ const lo=CUR.kind==="lampA"?n(R.ak):0, b1=n(R.b1), b2=n(R.b2);
+    const rg=[`${lo?lo+"〜":"〜"}${b1}kWh`, b1===b2?"":`${b1}〜${b2}kWh`, `${b2}kWh超`];
+    tiers.forEach((x,i)=>x.label=`第${i+1}段階${rg[i]?`（${rg[i]}）`:""}`); }
   if(kwh===0 && CUR.kind!=="lampA" && basic){ basic/=2; bf+="（使用量0のため半額）"; }
   basic=t2(basic);
   items.push({k:"c_basic",label:bl,v:basic,f:bf});
@@ -1333,8 +1335,8 @@ function unitQty(it, r, c, side){
   if(it.qn!=null) return {u:`${fu(it.un)}円/kWh`, q:`${fmt(it.qn)}kWh`, qn:it.qn, pk:true};
   if(PER_KWH.includes(k)) return {u:kwh?`${fu(v/kwh)}円/kWh`:"—", q:`${fmt(kwh)}kWh`, qn:kwh, pk:true};
   if(k==="c_basic" && (curPlanObj()||{}).looop){ const R=CUR.r, kwC=(+R.kw||0)||((CUR.kind==="power")?cap:capN); return {u:(R.tb6!==""&&R.tb6!=null&&CUR.kind!=="power")?`6kWまで${fu(+R.tb6)}円＋超過${fu(+R.tbx)}円/kW`:`${fu(+R.tb)}円/kW`, q:`${fmt(kwC,kwC%1?1:0)}kW${+R.kw?"":"（仮）"}`}; }
-  if(k==="c_basic" && CUR.kind==="lampA") return {u:`${fu(v)}円`, q:`最低料金（${+CUR.r.ak||0}kWhまで）`};
-  if(k==="basic" && zone2A) return {u:`${fu(v)}円`, q:isPal(r.plan)?"最低料金":"1需要場所"};
+  if(k==="c_basic" && CUR.kind==="lampA") return {u:`${fu(v)}円`, q:`最初の${+CUR.r.ak||0}kWhまで`};
+  if(k==="basic" && zone2A) return {u:`${fu(v)}円`, q:isPal(r.plan)?`最初の${r.area==="shikoku"?11:15}kWhまで`:"1需要場所"};
   if((k==="stable"||k==="stadj") && zone2A) return {u:`${fu(v)}円/件`, q:"1件"};
   if(k==="c_stable" && CUR.kind==="lampA") return {u:`${fu(v)}円/件`, q:"1件"};
   if(k==="c_takuso") return {u:"容量＋使用量に応じて", q:`${capT}・${fmt(kwh)}kWh`};
@@ -1445,8 +1447,11 @@ function renderCompTable(res,R,curs){
     let e=sumK(res,row.ek), c=sumK(curs,row.ck);
     if(row.tot){
       e=sumK(res,[row.tot.e]); c=sumK(curs,[row.tot.c]);
-      if(E.length) E.push({lab:"合計",u:kw?`平均 ${fu(e/kw)}円/kWh`:"—",q:`${fmt(kw)}kWh`,v:e,b:true});
-      if(C.length) C.push({lab:"合計",u:kw?`平均 ${fu(c/kw)}円/kWh`:"—",q:`${fmt(kw)}kWh`,v:c,b:true});
+      const totLine=(L,v)=>{ const qs=L.reduce((a,l)=>a+(parseFloat(String(l.q).replace(/,/g,""))||0),0);
+        const ex=kw-qs, base=ex>0.5?qs:kw;
+        return {lab:"合計",u:base?`平均 ${fu(v/base)}円/kWh`:"—",q:ex>0.5?`${fmt(qs)}kWh（＋最低料金分 ${fmt(ex)}kWh）`:`${fmt(kw)}kWh`,v,b:true}; };
+      if(E.length) E.push(totLine(E,e));
+      if(C.length) C.push(totLine(C,c));
     }
     const showLab = /^[①③]/.test(row.t) ? false : row.t;
     const [t1,...t2]=row.t.split(/\s+/);
