@@ -272,6 +272,7 @@ textarea#copyfallback{width:100%;min-height:160px;font-family:var(--f-num);font-
     <div id="bdVis" class="vis" hidden></div>
     <div class="small swipe">表は横にスクロールできます →</div>
     <div class="scroll"><table id="bd"></table></div>
+    <div id="bdHidNote" class="warn" hidden></div>
     <div id="curCmp" style="display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:14px" hidden></div>
     <details>
       <summary>計算根拠を表示（月ごとの式）</summary>
@@ -1384,7 +1385,13 @@ function applyVis(){
   const subs=["cu","cq","cv"].filter(k=>!HID.cols.has(k)).length;
   t.querySelectorAll("[data-g]").forEach(c=>{ c.colSpan=Math.max(1,subs); c.style.display = subs?"":"none"; });
   t.querySelectorAll("th.gh").forEach(c=>{ c.colSpan=Math.max(1,subs); if(!subs) c.style.display="none"; else c.style.display=""; });
-  t.querySelectorAll("tbody tr").forEach(tr=>{ tr.style.display = HID.rows.has(tr.dataset.rk)?"none":""; });
+  let hE=0,hC=0; const hn=[];
+  t.querySelectorAll("tbody tr").forEach(tr=>{ const off=HID.rows.has(tr.dataset.rk); tr.style.display = off?"none":"";
+    if(off && tr.classList.contains("it")){ hE+=+tr.dataset.e||0; hC+=+tr.dataset.c||0; hn.push(tr.dataset.rk); } });
+  const note=document.getElementById("bdHidNote");
+  if(note){ const hasC=!!t.querySelector("th.gc");
+    note.hidden=!hn.length;
+    note.innerHTML = hn.length ? `※非表示にしている行（${hn.join("、")}）の金額も合計に含まれています：${hasC?`現在の電気会社 ${fu(hC)}円／`:""}エネパル ${fu(hE)}円${hasC?`／差額 ${fu(hC-hE)}円`:""}。表に見えている行だけを足しても合計とは一致しません。`:""; }
 }
 function renderVisPanel(hasCur){
   const t=document.getElementById("bd"), st={camp:false}, keys=[];
@@ -1430,6 +1437,7 @@ function renderCompTable(res,R,curs){
   const ncol = hasCur?8:4;
   let h=`<thead><tr><th rowspan="2" class="ih">項目</th>${hasCur?`<th colspan="3" class="gs gh gc">現在の電気会社<br><span>${CUR.co}</span></th>`:""}<th colspan="3" class="gs gh ge">エネパル<br><span>${plans}</span></th>${hasCur?`<th rowspan="2" class="gs dh gd">差額<br><span>エネパルにすると</span></th>`:""}</tr>
     <tr>${hasCur?`<th class="gs gc cu">単価</th><th class="gc cq">使用量・容量</th><th class="gc cv">金額</th>`:""}<th class="gs ge cu">単価</th><th class="ge cq">使用量・容量</th><th class="ge cv">金額</th></tr></thead><tbody>`;
+  let sumE=0, sumC=0;
   CMP_ROWS.forEach(row=>{
     if(row.h){ h+=`<tr class="hd"><td colspan="${ncol}">${row.h}<span>会社によって項目の名前や有無が違うため、1行ずつ並べています</span></td></tr>`; return; }
     let E=cellLines(row.ek,idx,R,res,res,"e"), C=hasCur?cellLines(row.ck,idx,R,curs,res,"c"):[];
@@ -1442,9 +1450,18 @@ function renderCompTable(res,R,curs){
     }
     const showLab = /^[①③]/.test(row.t) ? false : row.t;
     const [t1,...t2]=row.t.split(/\s+/);
-    h+=`<tr class="it"><td>${/^[①-③]/.test(row.t)?`<span class="no">${t1}</span>${t2.join(" ")}`:row.t}</td>${hasCur?trip(C,showLab,"gc"):""}${row.nd?`<td class="gs ge" colspan="3" data-g></td>`:trip(E,showLab,"ge")}${hasCur?dcell(c-e):""}</tr>`;
+    sumE+=e; sumC+=c;
+    h+=`<tr class="it" data-e="${e}" data-c="${hasCur?c:0}"><td>${/^[①-③]/.test(row.t)?`<span class="no">${t1}</span>${t2.join(" ")}`:row.t}</td>${hasCur?trip(C,showLab,"gc"):""}${row.nd?`<td class="gs ge" colspan="3" data-g></td>`:trip(E,showLab,"ge")}${hasCur?dcell(c-e):""}</tr>`;
   });
   const te=idx.reduce((a,i)=>a+res[i].total,0);
+  {
+    const tcx = hasCur?idx.reduce((a,i)=>a+curs[i].total,0):0;
+    const rE=t2(te-sumE), rC=hasCur?t2(tcx-sumC):0;
+    if(Math.abs(rE)>=0.005 || Math.abs(rC)>=0.005){
+      const one=v=>`<td class="n gs CLS cu"><div class="ln"><span class="val"><span class="tx">—</span></span></div></td><td class="n CLS cq"></td><td class="n CLS amt cv"><div class="ln"><span class="val">${yenN(v)}</span></div></td>`;
+      h+=`<tr class="it" data-e="${rE}" data-c="${rC}"><td>端数調整<br><span class="small" style="font-weight:500">合計は1円未満を切り捨てるため、その差</span></td>${hasCur?one(rC).replace(/CLS/g,"gc"):""}${one(rE).replace(/CLS/g,"ge")}${hasCur?dcell(rC-rE):""}</tr>`;
+    }
+  }
   if(hasCur){
     const tc=idx.reduce((a,i)=>a+curs[i].total,0), d=tc-te;
     h+=`<tr class="tot"><td>合計（税込）</td><td class="gs gc" colspan="3" data-g><span class="tv">${fmt(tc)}</span><small>円</small></td><td class="gs ge" colspan="3" data-g><span class="tv">${fmt(te)}</span><small>円</small></td>${dcell(d,"円",false)}</tr>`;
